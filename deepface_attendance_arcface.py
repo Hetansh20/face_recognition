@@ -1,14 +1,21 @@
 """
-DeepFace Attendance System - High-Accuracy Version
-Key improvements for large class sizes (50+ students):
-  1. TRAIN MODEL: Pre-extracts & caches face embeddings so recognition is fast
-  2. Uses DeepFace.find() for 1-vs-all cosine search (much faster than looping)
-  3. RetinaFace detector backend for far better face detection accuracy
-  4. Crops and saves ONLY the face region during registration (not full frame)
-  5. Multi-frame voting for stable recognition decisions
-  6. Per-day duplicate attendance guard (person logged only once per day)
-  7. Live confidence display on camera feed
-  8. Adjustable similarity threshold slider
+DeepFace Attendance System — ArcFace Edition
+=============================================
+Uses the ArcFace recognition model (state-of-the-art) + MTCNN detector.
+
+ArcFace key facts:
+  - 512-dimensional embeddings
+  - DeepFace default cosine threshold: ~0.68
+  - Generally more discriminative than Facenet512 for large galleries
+
+This file reuses the SAME:
+  - registered_faces/ images
+  - face_database.json
+But has its OWN embedding cache (face_embeddings_arcface.pkl)
+so you must retrain when switching from the Facenet512 version.
+
+Run:
+  python deepface_attendance_arcface.py
 """
 
 import cv2
@@ -26,22 +33,22 @@ import pickle
 import shutil
 
 # ── Constants ────────────────────────────────────────────────────────────────
-MODEL_NAME      = "Facenet512"          # best accuracy / speed tradeoff
+MODEL_NAME      = "ArcFace"             # state-of-the-art accuracy
 # IMPORTANT: DETECTOR must be the SAME for training AND recognition.
 # Using different detectors produces different face crops → incompatible
 # embeddings → wrong matches even for the correct person.
-# mtcnn is thread-safe (fine in background thread) and more accurate than opencv.
+# mtcnn is thread-safe and more accurate than opencv.
 DETECTOR        = "mtcnn"
 DISTANCE_METRIC = "cosine"
-EMBEDDING_CACHE = "face_embeddings.pkl" # trained embeddings cache
+EMBEDDING_CACHE = "face_embeddings_arcface.pkl"  # separate from Facenet512 cache
 
 
-class SimpleAttendanceSystem:
+class ArcFaceAttendanceSystem:
     def __init__(self, root):
         self.root = root
-        self.root.title("DeepFace Attendance System — High Accuracy")
+        self.root.title("ArcFace Attendance System — High Accuracy")
         self.root.geometry("1200x720")
-        self.root.configure(bg='#1a1a2e')
+        self.root.configure(bg='#0d1117')
 
         # State
         self.camera           = None
@@ -51,19 +58,19 @@ class SimpleAttendanceSystem:
         self.processing       = False
 
         # Multi-frame voting buffer
-        self.vote_buffer      = []        # list of (person_id, distance) tuples
-        self.vote_window      = 7         # frames to collect before deciding (5/7 required)
+        self.vote_buffer      = []
+        self.vote_window      = 7
         self.last_name_shown  = None
 
-        # Paths
+        # Paths — reuses same images & database as Facenet512 version
         self.faces_dir        = "registered_faces"
         self.database_file    = "face_database.json"
-        self.attendance_file  = "attendance_log.csv"
+        self.attendance_file  = "attendance_arcface.csv"
         self.embedding_cache  = EMBEDDING_CACHE
 
         os.makedirs(self.faces_dir, exist_ok=True)
 
-        # Load database + auto-import any images not yet in DB
+        # Load database + auto-import from disk
         self.load_database()
         self.auto_sync_database()
         self.embeddings = self.load_embeddings()
@@ -71,11 +78,9 @@ class SimpleAttendanceSystem:
         # Setup GUI
         self.setup_gui()
         self.update_faces_list()
-
-        # Status flag: is the embedding cache fresh?
         self._mark_training_status()
 
-        print("✅ System initialized. Click 'Train Model' before starting recognition.")
+        print("✅ ArcFace system initialized. Click 'Train Model' to begin.")
 
     # ── Database ─────────────────────────────────────────────────────────────
 
@@ -95,19 +100,12 @@ class SimpleAttendanceSystem:
         """
         Scans registered_faces/ and imports any person whose images exist on disk
         but are missing from face_database.json.
-
-        Image naming convention (set during registration):
-            {FirstName}_{LastName}_{EmployeeID}_front.jpg
-            {FirstName}_{LastName}_{EmployeeID}_left.jpg
-            {FirstName}_{LastName}_{EmployeeID}_right.jpg
         """
         added = 0
-        # Collect all image files grouped by person_id
         person_images: dict = {}
         for fname in os.listdir(self.faces_dir):
             if not fname.lower().endswith(('.jpg', '.jpeg', '.png')):
                 continue
-            # Strip suffix (_front / _left / _right)
             for suffix in ('_front', '_left', '_right'):
                 if fname.lower().endswith(suffix + os.path.splitext(fname)[1].lower()):
                     person_id = fname[:fname.lower().rfind(suffix)]
@@ -118,12 +116,9 @@ class SimpleAttendanceSystem:
 
         for person_id, paths in person_images.items():
             if person_id in self.database:
-                continue  # already registered
+                continue
 
-            # Parse name and employee ID from person_id string
-            # Expected pattern: Word_Word_..._NumericID
             parts = person_id.split('_')
-            # Find where the numeric employee-ID part starts
             id_idx = None
             for i, p in enumerate(parts):
                 if p.isdigit() and len(p) >= 5:
@@ -137,7 +132,6 @@ class SimpleAttendanceSystem:
                 emp_id     = ""
 
             name = " ".join(name_parts)
-            # Sort paths so front/left/right order is consistent
             paths_sorted = sorted(paths)
 
             self.database[person_id] = {
@@ -169,7 +163,7 @@ class SimpleAttendanceSystem:
             try:
                 with open(self.embedding_cache, 'rb') as f:
                     cache = pickle.load(f)
-                print(f"[TRAIN] Loaded {len(cache)} cached embeddings.")
+                print(f"[TRAIN] Loaded {len(cache)} cached ArcFace embeddings.")
                 return cache
             except Exception as e:
                 print(f"[TRAIN] Cache corrupt, will retrain: {e}")
@@ -181,11 +175,11 @@ class SimpleAttendanceSystem:
 
     def train_model(self):
         """
-        Pre-compute and cache a face embedding for every registered image.
-        This means recognition never has to re-compute embeddings from disk.
+        Pre-compute and cache an ArcFace embedding for every registered image.
+        Stores per-image embeddings AND a mean embedding for more robust matching.
         """
         self.train_btn.config(state=tk.DISABLED, text="Training…")
-        self.status_label.config(text="Status: Training — please wait…", fg='#f39c12')
+        self.status_label.config(text="Status: Training ArcFace — please wait…", fg='#f39c12')
         self.root.update_idletasks()
 
         def _train():
@@ -197,7 +191,6 @@ class SimpleAttendanceSystem:
             for idx, (person_id, info) in enumerate(self.database.items(), 1):
                 name = info.get('name', person_id)
 
-                # Live progress update in the status bar
                 self.root.after(0, lambda n=name, i=idx:
                     self.status_label.config(
                         text=f"Training {i}/{n_persons}: {n} …", fg='#f39c12'
@@ -215,10 +208,6 @@ class SimpleAttendanceSystem:
                         continue
                     total += 1
                     try:
-                        # ── Pre-load image via cv2 as numpy array.
-                        # Passing a string path to DeepFace triggers TF's
-                        # internal HDF5 reader which crashes on JPEG files
-                        # with 'file signature not found'.
                         img_bgr = cv2.imread(img_path)
                         if img_bgr is None:
                             from PIL import Image as _PILImage
@@ -227,9 +216,6 @@ class SimpleAttendanceSystem:
                                 cv2.COLOR_RGB2BGR
                             )
 
-                        # Use the SAME detector constant as recognition so that
-                        # training and live embeddings are comparable.
-                        # mtcnn is used: thread-safe and more accurate than opencv.
                         result = DeepFace.represent(
                             img_path         = img_bgr,
                             model_name       = MODEL_NAME,
@@ -249,7 +235,11 @@ class SimpleAttendanceSystem:
                 if person_vecs:
                     mean_vec = np.mean(person_vecs, axis=0)
                     mean_vec /= (np.linalg.norm(mean_vec) + 1e-10)
-                    cache[person_id] = mean_vec
+                    # Store both mean and individual vectors for flexible matching
+                    cache[person_id] = {
+                        'mean': mean_vec,
+                        'all' : person_vecs,
+                    }
                     print(f"[TRAIN]   ✓ {len(person_vecs)}/3 images OK")
                 else:
                     print(f"[TRAIN]   ✗ No embeddings extracted — skipped")
@@ -257,7 +247,7 @@ class SimpleAttendanceSystem:
             self.embeddings = cache
             self.save_embeddings(cache)
 
-            msg = (f"Training complete!\n"
+            msg = (f"ArcFace Training complete!\n"
                    f"Processed : {total} images\n"
                    f"Persons   : {len(cache)}/{n_persons}\n"
                    f"Skipped   : {errors} images")
@@ -267,8 +257,8 @@ class SimpleAttendanceSystem:
         threading.Thread(target=_train, daemon=True).start()
 
     def _on_train_done(self, msg):
-        self.train_btn.config(state=tk.NORMAL, text="🧠 Train Model")
-        self.status_label.config(text="Status: Training complete — ready to recognize", fg='#2ecc71')
+        self.train_btn.config(state=tk.NORMAL, text="🧠 Train Model (ArcFace)")
+        self.status_label.config(text="Status: ArcFace trained — ready to recognize", fg='#2ecc71')
         self._mark_training_status()
         messagebox.showinfo("Training Complete", msg)
 
@@ -277,62 +267,60 @@ class SimpleAttendanceSystem:
         n_reg     = len(self.database)
         if n_trained == 0:
             self.train_status_lbl.config(
-                text=f"⚠ Model NOT trained ({n_reg} registered)", fg='#e74c3c')
+                text=f"⚠ ArcFace NOT trained ({n_reg} registered)", fg='#e74c3c')
         elif n_trained < n_reg:
             self.train_status_lbl.config(
-                text=f"⚠ Partial train ({n_trained}/{n_reg} persons)", fg='#f39c12')
+                text=f"⚠ Partial ({n_trained}/{n_reg} persons)", fg='#f39c12')
         else:
             self.train_status_lbl.config(
-                text=f"✅ Model trained ({n_trained} persons)", fg='#2ecc71')
+                text=f"✅ ArcFace trained ({n_trained} persons)", fg='#2ecc71')
 
     # ── GUI ──────────────────────────────────────────────────────────────────
 
     def setup_gui(self):
-        # ── Title bar
         title = tk.Label(
             self.root,
-            text="🎓 DeepFace Attendance System — High Accuracy",
+            text="🎓 ArcFace Attendance System",
             font=('Segoe UI', 18, 'bold'),
-            bg='#16213e', fg='#e94560', pady=12
+            bg='#161b22', fg='#58a6ff', pady=12
         )
         title.pack(fill=tk.X)
 
-        # ── Main area
-        main = tk.Frame(self.root, bg='#1a1a2e')
+        main = tk.Frame(self.root, bg='#0d1117')
         main.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
 
         # Left — Camera
-        left = tk.Frame(main, bg='#16213e', relief=tk.FLAT, bd=0)
+        left = tk.Frame(main, bg='#161b22', relief=tk.FLAT, bd=0)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
 
         tk.Label(left, text="📷 Camera Feed", font=('Segoe UI', 11, 'bold'),
-                 bg='#16213e', fg='#a8dadc').pack(pady=(8,2))
+                 bg='#161b22', fg='#8b949e').pack(pady=(8,2))
 
-        self.video_label = tk.Label(left, bg='#0f0f1a', width=72, height=28)
+        self.video_label = tk.Label(left, bg='#010409', width=72, height=28)
         self.video_label.pack(padx=10, pady=6, fill=tk.BOTH, expand=True)
 
         self.status_label = tk.Label(
             left, text="Status: Camera Off",
-            font=('Segoe UI', 10), bg='#16213e', fg='#a8dadc', pady=6
+            font=('Segoe UI', 10), bg='#161b22', fg='#8b949e', pady=6
         )
         self.status_label.pack()
 
         self.conf_label = tk.Label(
             left, text="",
-            font=('Segoe UI', 10, 'bold'), bg='#16213e', fg='#f1c40f', pady=2
+            font=('Segoe UI', 10, 'bold'), bg='#161b22', fg='#d29922', pady=2
         )
         self.conf_label.pack()
 
         # Right — Controls
-        right = tk.Frame(main, bg='#16213e', relief=tk.FLAT, bd=0, width=310)
+        right = tk.Frame(main, bg='#161b22', relief=tk.FLAT, bd=0, width=310)
         right.pack(side=tk.RIGHT, fill=tk.Y, padx=(6, 0))
         right.pack_propagate(False)
 
-        ctrl = tk.Frame(right, bg='#16213e', pady=12)
+        ctrl = tk.Frame(right, bg='#161b22', pady=12)
         ctrl.pack(fill=tk.X, padx=14)
 
         tk.Label(ctrl, text="Controls", font=('Segoe UI', 13, 'bold'),
-                 bg='#16213e', fg='white').pack(pady=(0,10))
+                 bg='#161b22', fg='#c9d1d9').pack(pady=(0,10))
 
         def btn(parent, text, cmd, color, state=tk.NORMAL):
             b = tk.Button(parent, text=text, command=cmd,
@@ -343,40 +331,40 @@ class SimpleAttendanceSystem:
             b.pack(fill=tk.X, pady=4)
             return b
 
-        self.cam_btn   = btn(ctrl, "▶ Start Camera",    self.toggle_camera,  '#27ae60')
-        self.train_btn = btn(ctrl, "🧠 Train Model",     self.train_model,    '#8e44ad')
-        self.reg_btn   = btn(ctrl, "➕ Register Face",   self.register_mode,  '#2980b9', tk.DISABLED)
-        self.rec_btn   = btn(ctrl, "🔍 Start Recognition", self.recognize_mode,'#e67e22', tk.DISABLED)
-        self.stop_btn  = btn(ctrl, "⏹ Stop",             self.stop_mode,      '#7f8c8d', tk.DISABLED)
-        btn(ctrl, "📋 View Attendance",  self.view_attendance,   '#9b59b6')
-        btn(ctrl, "🗑 Delete Student",   self.show_delete_dialog,'#c0392b')
+        self.cam_btn   = btn(ctrl, "▶ Start Camera",          self.toggle_camera,   '#238636')
+        self.train_btn = btn(ctrl, "🧠 Train Model (ArcFace)", self.train_model,     '#8957e5')
+        self.reg_btn   = btn(ctrl, "➕ Register Face",          self.register_mode,   '#1f6feb', tk.DISABLED)
+        self.rec_btn   = btn(ctrl, "🔍 Start Recognition",     self.recognize_mode,  '#da3633', tk.DISABLED)
+        self.stop_btn  = btn(ctrl, "⏹ Stop",                   self.stop_mode,       '#484f58', tk.DISABLED)
+        btn(ctrl, "📋 View Attendance",  self.view_attendance,   '#8957e5')
+        btn(ctrl, "🗑 Delete Student",   self.show_delete_dialog,'#da3633')
 
-        # Threshold slider
+        # Threshold slider — ArcFace cosine distances are larger than Facenet512
         tk.Label(ctrl, text="Similarity Threshold",
-                 font=('Segoe UI', 9), bg='#16213e', fg='#a8dadc').pack(pady=(10,0))
-        self.threshold_var = tk.DoubleVar(value=0.35)
+                 font=('Segoe UI', 9), bg='#161b22', fg='#8b949e').pack(pady=(10,0))
+        self.threshold_var = tk.DoubleVar(value=0.55)
         self.thresh_slider = tk.Scale(
-            ctrl, from_=0.20, to=0.65, resolution=0.01,
+            ctrl, from_=0.30, to=0.75, resolution=0.01,
             orient=tk.HORIZONTAL, variable=self.threshold_var,
-            bg='#16213e', fg='white', troughcolor='#2c3e50',
+            bg='#161b22', fg='#c9d1d9', troughcolor='#21262d',
             highlightthickness=0, font=('Segoe UI', 9)
         )
         self.thresh_slider.pack(fill=tk.X)
         tk.Label(ctrl, text="← stricter    looser →",
-                 font=('Segoe UI', 8), bg='#16213e', fg='#7f8c8d').pack()
+                 font=('Segoe UI', 8), bg='#161b22', fg='#484f58').pack()
 
         # Training status
         self.train_status_lbl = tk.Label(
             ctrl, text="", font=('Segoe UI', 9, 'bold'),
-            bg='#16213e', fg='#e74c3c'
+            bg='#161b22', fg='#e74c3c'
         )
         self.train_status_lbl.pack(pady=(8,0))
 
         # Registered faces list
         tk.Label(right, text="Registered Faces", font=('Segoe UI', 11, 'bold'),
-                 bg='#16213e', fg='white', pady=6).pack()
+                 bg='#161b22', fg='#c9d1d9', pady=6).pack()
 
-        list_frame = tk.Frame(right, bg='#16213e')
+        list_frame = tk.Frame(right, bg='#161b22')
         list_frame.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
 
         sb = tk.Scrollbar(list_frame)
@@ -384,15 +372,15 @@ class SimpleAttendanceSystem:
 
         self.faces_list = tk.Listbox(
             list_frame, font=('Segoe UI', 9),
-            bg='#0f3460', fg='#e2e2e2',
-            selectbackground='#e94560',
+            bg='#0d1117', fg='#c9d1d9',
+            selectbackground='#1f6feb',
             yscrollcommand=sb.set, relief=tk.FLAT
         )
         self.faces_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb.config(command=self.faces_list.yview)
 
         tk.Button(right, text="Delete Selected", command=self.delete_face,
-                  font=('Segoe UI', 9), bg='#c0392b', fg='white',
+                  font=('Segoe UI', 9), bg='#da3633', fg='white',
                   relief=tk.FLAT, cursor='hand2').pack(pady=8)
 
     def update_faces_list(self):
@@ -406,14 +394,13 @@ class SimpleAttendanceSystem:
         if not self.is_running:
             try:
                 self.camera = cv2.VideoCapture(0)
-                # Increase resolution for better detection
                 self.camera.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
                 self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
                 if not self.camera.isOpened():
                     messagebox.showerror("Error", "Cannot open camera!")
                     return
                 self.is_running = True
-                self.cam_btn.config(text="⏹ Stop Camera", bg='#c0392b')
+                self.cam_btn.config(text="⏹ Stop Camera", bg='#da3633')
                 self.reg_btn.config(state=tk.NORMAL)
                 self.rec_btn.config(state=tk.NORMAL)
                 self.status_label.config(text="Status: Camera Active")
@@ -425,7 +412,7 @@ class SimpleAttendanceSystem:
             self.mode = "idle"
             if self.camera:
                 self.camera.release()
-            self.cam_btn.config(text="▶ Start Camera", bg='#27ae60')
+            self.cam_btn.config(text="▶ Start Camera", bg='#238636')
             self.reg_btn.config(state=tk.DISABLED)
             self.rec_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.DISABLED)
@@ -443,7 +430,7 @@ class SimpleAttendanceSystem:
                 if self.mode == "register":
                     display = self.draw_registration_box(display)
                 elif self.mode == "recognize" and self.last_name_shown:
-                    cv2.putText(display, f"✓ {self.last_name_shown}", (20, 50),
+                    cv2.putText(display, f">> {self.last_name_shown}", (20, 50),
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 100), 2)
 
                 self.display_frame(display)
@@ -478,16 +465,16 @@ class SimpleAttendanceSystem:
         x2, y2 = x1+size, y1+size
 
         overlay = frame.copy()
-        cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 255, 100), -1)
-        cv2.addWeighted(overlay, 0.08, frame, 0.92, 0, frame)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 100), 3)
+        cv2.rectangle(overlay, (x1, y1), (x2, y2), (88, 166, 255), -1)
+        cv2.addWeighted(overlay, 0.10, frame, 0.90, 0, frame)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (88, 166, 255), 3)
 
         step_texts = ["Step 1/3: Look STRAIGHT", "Step 2/3: Turn SLIGHTLY LEFT", "Step 3/3: Turn SLIGHTLY RIGHT"]
         step = getattr(self, 'registration_step', 0)
         cv2.putText(frame, step_texts[min(step, 2)], (x1, y1-14),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 100), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, (88, 166, 255), 2)
         cv2.putText(frame, "Press SPACE to capture", (x1, y2+32),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 100), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (88, 166, 255), 2)
         return frame
 
     def capture_face(self, event=None):
@@ -496,7 +483,7 @@ class SimpleAttendanceSystem:
 
         frame = self.current_frame.copy()
 
-        # ── Try to extract JUST the face region using retinaface ──
+        # Try to extract JUST the face region
         try:
             faces = DeepFace.extract_faces(
                 img_path         = frame,
@@ -505,7 +492,6 @@ class SimpleAttendanceSystem:
                 align            = True,
             )
             if faces:
-                # Use the face with highest confidence
                 best = max(faces, key=lambda f: f.get('confidence', 0))
                 face_arr = (best['face'] * 255).astype(np.uint8)
                 face_bgr = cv2.cvtColor(face_arr, cv2.COLOR_RGB2BGR)
@@ -513,7 +499,6 @@ class SimpleAttendanceSystem:
             else:
                 frame_to_save = frame
         except Exception:
-            # Fallback: save full frame (face detection failed for this angle)
             frame_to_save = frame
 
         self.registration_images.append(frame_to_save)
@@ -554,7 +539,7 @@ class SimpleAttendanceSystem:
             self.update_faces_list()
 
             messagebox.showinfo("Success",
-                f"✅ Registered: {name}\n\nIMPORTANT: Click 'Train Model' to update the recognition model.")
+                f"✅ Registered: {name}\n\nIMPORTANT: Click 'Train Model' to update ArcFace embeddings.")
             self._mark_training_status()
             self.stop_mode()
 
@@ -562,7 +547,7 @@ class SimpleAttendanceSystem:
             messagebox.showerror("Error", f"Registration failed: {e}")
             self.stop_mode()
 
-    # ── Recognition (fast embedding-based) ──────────────────────────────────
+    # ── Recognition (ArcFace embedding-based) ────────────────────────────────
 
     def recognize_mode(self):
         if not self.database:
@@ -570,14 +555,14 @@ class SimpleAttendanceSystem:
             return
         if not self.embeddings:
             if not messagebox.askyesno("Train First",
-                    "The model has not been trained yet.\n"
-                    "Recognition accuracy will be poor.\n\nContinue anyway?"):
+                    "ArcFace model has not been trained yet.\n"
+                    "Click 'Train Model' first for accurate results.\n\nContinue anyway?"):
                 return
 
         self.mode = "recognize"
         self.vote_buffer = []
         self.last_name_shown = None
-        self.status_label.config(text="Status: Recognition Active — scanning…")
+        self.status_label.config(text="Status: ArcFace Recognition Active — scanning…")
         self.reg_btn.config(state=tk.DISABLED)
         self.rec_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
@@ -585,23 +570,21 @@ class SimpleAttendanceSystem:
         threading.Thread(target=self.recognition_loop, daemon=True).start()
 
     def recognition_loop(self):
-        print("[Recog] Started recognition loop")
+        print("[Recog] ArcFace recognition started")
         while self.mode == "recognize":
             if self.current_frame is not None and not self.processing:
                 self.processing = True
                 self._process_recognition_frame()
                 self.processing = False
-            time.sleep(0.6)  # 0.6 s between frames
+            time.sleep(0.6)
 
     def _process_recognition_frame(self):
         try:
             frame = self.current_frame.copy()
 
-            # Step 1: Extract face embedding from current frame
-            # Try preferred detector first, fall back to opencv for robustness
+            # Step 1: Extract ArcFace embedding from current frame
             result = None
-            last_err = None
-            for detector in (DETECTOR, 'mtcnn', 'opencv'):
+            for detector in (DETECTOR, 'opencv'):
                 try:
                     result = DeepFace.represent(
                         img_path         = frame,
@@ -610,10 +593,9 @@ class SimpleAttendanceSystem:
                         enforce_detection= True,
                         align            = True,
                     )
-                    if result:  # got at least one face
+                    if result:
                         break
-                except Exception as e:
-                    last_err = e
+                except Exception:
                     continue
 
             if not result:
@@ -623,12 +605,28 @@ class SimpleAttendanceSystem:
             live_vec = np.array(result[0]['embedding'], dtype=np.float32)
             live_vec /= (np.linalg.norm(live_vec) + 1e-10)
 
-            # Step 2: Cosine similarity against ALL cached embeddings
-            all_dists = sorted(
-                [(pid, 1.0 - float(np.dot(live_vec, sv)))
-                 for pid, sv in self.embeddings.items()],
-                key=lambda x: x[1]
-            )
+            # Step 2: Find best match using MIN-OF-ALL strategy
+            # Instead of just comparing to the mean embedding, compare against
+            # ALL stored per-image embeddings and take the minimum distance.
+            # This is more robust to pose variation.
+            all_dists = []
+
+            for pid, data in self.embeddings.items():
+                if isinstance(data, dict) and 'all' in data:
+                    # Compare to every stored image and take the best match
+                    min_dist = float('inf')
+                    for stored_vec in data['all']:
+                        d = 1.0 - float(np.dot(live_vec, stored_vec))
+                        if d < min_dist:
+                            min_dist = d
+                    all_dists.append((pid, min_dist))
+                else:
+                    # Fallback: old-style mean-only cache
+                    vec = data if isinstance(data, np.ndarray) else data.get('mean', data)
+                    d = 1.0 - float(np.dot(live_vec, vec))
+                    all_dists.append((pid, d))
+
+            all_dists.sort(key=lambda x: x[1])
 
             best_pid,  best_dist  = all_dists[0]
             _,         sec_dist   = all_dists[1] if len(all_dists) > 1 else (None, 1.0)
@@ -641,11 +639,8 @@ class SimpleAttendanceSystem:
             print(f"[Recog] Top3: {top3_str}")
 
             threshold     = self.threshold_var.get()
-            # Margin check: gap between #1 and #2 must be meaningful.
-            # 0.03 is chosen empirically — filters coin-flip frames (gap<0.01)
-            # without blocking genuine recognitions which often have gaps of 0.02+
             MARGIN_NEEDED = 0.03
-            ABS_MAX_DIST  = 0.36   # absolute ceiling; above this is rejected regardless
+            ABS_MAX_DIST  = 0.55   # ArcFace distances are larger than Facenet512
 
             decisive = (
                 best_dist < threshold
@@ -662,17 +657,14 @@ class SimpleAttendanceSystem:
             if len(self.vote_buffer) > self.vote_window:
                 self.vote_buffer.pop(0)
 
-            # Step 4: Decide — require 4 out of 7 frames to agree on same person.
-            # (5/7 was too strict when camera noise scatters valid frames.)
-            VOTES_NEEDED = self.vote_window // 2 + 1  # = 4 for window of 7
+            # Step 4: Decide — require 4 out of 7 frames to agree
+            VOTES_NEEDED = self.vote_window // 2 + 1
             valid_votes  = [(p, d) for p, d in self.vote_buffer if p is not None]
 
-            # Count votes per person
             vote_counts = {}
             for p, d in valid_votes:
                 vote_counts.setdefault(p, []).append(d)
 
-            # Find a person who has enough votes
             winner_pid = None
             winner_avg = 1.0
             for p, dists in vote_counts.items():
@@ -685,11 +677,10 @@ class SimpleAttendanceSystem:
             if winner_pid:
                 confidence = 1.0 - winner_avg
                 self._on_recognized(winner_pid, confidence)
-                self.vote_buffer = []  # reset after recognition
+                self.vote_buffer = []
             else:
                 status = f"Scanning… {best_dist:.3f} vs {sec_dist:.3f}" if not decisive else f"Collecting votes…  {best_dist:.3f}"
                 self.root.after(0, lambda t=status: self.conf_label.config(text=t))
-
 
         except Exception as e:
             if "Face could not be detected" not in str(e):
@@ -717,19 +708,15 @@ class SimpleAttendanceSystem:
     # ── Attendance logging ────────────────────────────────────────────────
 
     def log_attendance(self, person_id, info) -> bool:
-        """
-        Returns True if this person was already logged TODAY (skip duplicate).
-        """
         today = datetime.now().strftime("%Y-%m-%d")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Check for duplicate in today's records only
         if os.path.exists(self.attendance_file):
             try:
                 with open(self.attendance_file, 'r') as f:
                     for line in f:
                         if today in line and person_id in line:
-                            return True   # already logged today
+                            return True
             except Exception:
                 pass
 
@@ -750,15 +737,15 @@ class SimpleAttendanceSystem:
         popup = tk.Toplevel(self.root)
         popup.title("✅ Recognized")
         popup.geometry("340x170")
-        popup.configure(bg='#1e8449')
+        popup.configure(bg='#238636')
         popup.attributes('-topmost', True)
 
         tk.Label(popup, text="✅ Attendance Marked!", font=('Segoe UI', 14, 'bold'),
-                 bg='#1e8449', fg='white').pack(pady=(20, 5))
+                 bg='#238636', fg='white').pack(pady=(20, 5))
         tk.Label(popup, text=name, font=('Segoe UI', 18, 'bold'),
-                 bg='#1e8449', fg='#f0fff0').pack(pady=2)
+                 bg='#238636', fg='#f0fff0').pack(pady=2)
         tk.Label(popup, text=f"Confidence: {confidence}  |  {datetime.now().strftime('%H:%M:%S')}",
-                 font=('Segoe UI', 10), bg='#1e8449', fg='#a9dfbf').pack(pady=4)
+                 font=('Segoe UI', 10), bg='#238636', fg='#a9dfbf').pack(pady=4)
 
         popup.after(2500, popup.destroy)
 
@@ -767,7 +754,7 @@ class SimpleAttendanceSystem:
     def stop_mode(self):
         self.mode = "idle"
         self.last_name_shown = None
-        self.status_label.config(text="Status: Camera Active", fg='#a8dadc')
+        self.status_label.config(text="Status: Camera Active", fg='#8b949e')
         self.conf_label.config(text="")
         self.reg_btn.config(state=tk.NORMAL)
         self.rec_btn.config(state=tk.NORMAL)
@@ -798,7 +785,6 @@ class SimpleAttendanceSystem:
                 del self.database[person_id]
                 self.save_database()
                 self.update_faces_list()
-                # Invalidate cached embedding for this person
                 if person_id in self.embeddings:
                     del self.embeddings[person_id]
                     self.save_embeddings(self.embeddings)
@@ -815,25 +801,25 @@ class SimpleAttendanceSystem:
         dialog = tk.Toplevel(self.root)
         dialog.title("Delete Student")
         dialog.geometry("450x540")
-        dialog.configure(bg='#1a1a2e')
+        dialog.configure(bg='#0d1117')
         dialog.transient(self.root)
         dialog.grab_set()
         dialog.geometry("+%d+%d" % (self.root.winfo_x()+380, self.root.winfo_y()+100))
 
         tk.Label(dialog, text="🗑 Delete Student Record",
-                 font=('Segoe UI', 14, 'bold'), bg='#1a1a2e', fg='#e74c3c').pack(pady=14)
+                 font=('Segoe UI', 14, 'bold'), bg='#0d1117', fg='#da3633').pack(pady=14)
 
-        sf = tk.Frame(dialog, bg='#1a1a2e'); sf.pack(fill=tk.X, padx=18, pady=4)
-        tk.Label(sf, text="🔍", font=('Segoe UI', 11), bg='#1a1a2e', fg='white').pack(side=tk.LEFT)
+        sf = tk.Frame(dialog, bg='#0d1117'); sf.pack(fill=tk.X, padx=18, pady=4)
+        tk.Label(sf, text="🔍", font=('Segoe UI', 11), bg='#0d1117', fg='#c9d1d9').pack(side=tk.LEFT)
         sv = tk.StringVar()
         se = tk.Entry(sf, textvariable=sv, font=('Segoe UI', 10),
-                      bg='#16213e', fg='white', insertbackground='white', relief=tk.FLAT)
+                      bg='#161b22', fg='#c9d1d9', insertbackground='#c9d1d9', relief=tk.FLAT)
         se.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8,0))
 
-        lf = tk.Frame(dialog, bg='#1a1a2e'); lf.pack(fill=tk.BOTH, expand=True, padx=18, pady=8)
+        lf = tk.Frame(dialog, bg='#0d1117'); lf.pack(fill=tk.BOTH, expand=True, padx=18, pady=8)
         sb2 = tk.Scrollbar(lf); sb2.pack(side=tk.RIGHT, fill=tk.Y)
-        dlist = tk.Listbox(lf, font=('Segoe UI', 10), bg='#0f3460', fg='#e2e2e2',
-                           selectbackground='#e74c3c', yscrollcommand=sb2.set, relief=tk.FLAT)
+        dlist = tk.Listbox(lf, font=('Segoe UI', 10), bg='#0d1117', fg='#c9d1d9',
+                           selectbackground='#1f6feb', yscrollcommand=sb2.set, relief=tk.FLAT)
         dlist.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb2.config(command=dlist.yview)
 
@@ -874,13 +860,13 @@ class SimpleAttendanceSystem:
                 refresh()
                 messagebox.showinfo("Deleted", f"Deleted {n}", parent=dialog)
 
-        bf = tk.Frame(dialog, bg='#1a1a2e'); bf.pack(pady=12, fill=tk.X, padx=18)
+        bf = tk.Frame(dialog, bg='#0d1117'); bf.pack(pady=12, fill=tk.X, padx=18)
         tk.Button(bf, text="Delete Selected", command=do_delete,
-                  font=('Segoe UI', 10, 'bold'), bg='#c0392b', fg='white',
+                  font=('Segoe UI', 10, 'bold'), bg='#da3633', fg='white',
                   relief=tk.FLAT, cursor='hand2', height=2
                   ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,5))
         tk.Button(bf, text="Close", command=dialog.destroy,
-                  font=('Segoe UI', 10), bg='#7f8c8d', fg='white',
+                  font=('Segoe UI', 10), bg='#484f58', fg='white',
                   relief=tk.FLAT, cursor='hand2', height=2
                   ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5,0))
 
@@ -892,14 +878,14 @@ class SimpleAttendanceSystem:
             return
 
         win = tk.Toplevel(self.root)
-        win.title("Attendance Log")
+        win.title("Attendance Log — ArcFace")
         win.geometry("700x500")
-        win.configure(bg='#1a1a2e')
+        win.configure(bg='#0d1117')
 
         tk.Label(win, text="📋 Attendance Records", font=('Segoe UI', 14, 'bold'),
-                 bg='#1a1a2e', fg='white').pack(pady=10)
+                 bg='#0d1117', fg='#c9d1d9').pack(pady=10)
 
-        text = tk.Text(win, font=('Courier New', 10), bg='#0f3460', fg='#e2e2e2',
+        text = tk.Text(win, font=('Courier New', 10), bg='#161b22', fg='#c9d1d9',
                        wrap=tk.WORD, relief=tk.FLAT)
         text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -926,13 +912,14 @@ class SimpleAttendanceSystem:
 
 def main():
     print("=" * 60)
-    print("  DeepFace Attendance System — High Accuracy Edition")
+    print("  ArcFace Attendance System")
+    print("  Model: ArcFace  |  Detector: MTCNN")
     print("=" * 60)
     print()
     print("WORKFLOW:")
     print("  1. Start Camera")
     print("  2. Register all faces (if not already done)")
-    print("  3. Click 'Train Model' — this caches embeddings for speed")
+    print("  3. Click 'Train Model (ArcFace)' — caches embeddings")
     print("  4. Click 'Start Recognition'")
     print()
     print("Required packages:")
@@ -941,7 +928,7 @@ def main():
 
     try:
         root = tk.Tk()
-        app  = SimpleAttendanceSystem(root)
+        app  = ArcFaceAttendanceSystem(root)
         root.protocol("WM_DELETE_WINDOW", app.cleanup)
         root.mainloop()
     except Exception as e:

@@ -1,0 +1,15 @@
+C:\Python314\Lib\site-packages\onnxruntime\capi\onnxruntime_inference_collection.py:123: UserWarning: Specified provider 'CUDAExecutionProvider' is not in available provider names.Available providers: 'AzureExecutionProvider, CPUExecutionProvider'
+  warnings.warn(
+Traceback (most recent call last):
+  File "D:\ML\deepface\face_recognition\test_model.py", line 6, in <module>
+    app = FaceAnalysis(name='buffalo_l')
+  File "C:\Python314\Lib\site-packages\insightface\app\face_analysis.py", line 43, in __init__
+    assert 'detection' in self.models
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+Loading FaceAnalysis...
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+find model: C:\Users\USER/.insightface\models\buffalo_l\det_10g.onnx recognition ['None', 3, 112, 112] 127.5 127.5
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+duplicated model task type, ignore: C:\Users\USER/.insightface\models\buffalo_l\webface_r50.onnx recognition
+Caught Exception:

@@ -68,5 +68,535 @@
             "registered_faces\\Hetansh_Shah_92410133031_right.jpg"
         ],
         "registered": "2026-03-17 11:37:28"
+    },
+    "Adelaide_Miguel_92301733012": {
+        "name": "Adelaide Miguel",
+        "employee_id": "92301733012",
+        "image_paths": [
+            "registered_faces\\Adelaide_Miguel_92301733012_front.jpg",
+            "registered_faces\\Adelaide_Miguel_92301733012_left.jpg",
+            "registered_faces\\Adelaide_Miguel_92301733012_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Aditya_Raj_92301733062": {
+        "name": "Aditya Raj",
+        "employee_id": "92301733062",
+        "image_paths": [
+            "registered_faces\\Aditya_Raj_92301733062_front.jpg",
+            "registered_faces\\Aditya_Raj_92301733062_left.jpg",
+            "registered_faces\\Aditya_Raj_92301733062_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Albeija_Bernardete_Lola_Laissane_92301733003": {
+        "name": "Albeija Bernardete Lola Laissane",
+        "employee_id": "92301733003",
+        "image_paths": [
+            "registered_faces\\Albeija_Bernardete_Lola_Laissane_92301733003_front.jpg",
+            "registered_faces\\Albeija_Bernardete_Lola_Laissane_92301733003_left.jpg",
+            "registered_faces\\Albeija_Bernardete_Lola_Laissane_92301733003_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Angel_Oza_92301733063": {
+        "name": "Angel Oza",
+        "employee_id": "92301733063",
+        "image_paths": [
+            "registered_faces\\Angel_Oza_92301733063_front.jpg",
+            "registered_faces\\Angel_Oza_92301733063_left.jpg",
+            "registered_faces\\Angel_Oza_92301733063_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Armando_Moiane_92301733020": {
+        "name": "Armando Moiane",
+        "employee_id": "92301733020",
+        "image_paths": [
+            "registered_faces\\Armando_Moiane_92301733020_front.jpg",
+            "registered_faces\\Armando_Moiane_92301733020_left.jpg",
+            "registered_faces\\Armando_Moiane_92301733020_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Aryan_Rangani_92410133006": {
+        "name": "Aryan Rangani",
+        "employee_id": "92410133006",
+        "image_paths": [
+            "registered_faces\\Aryan_Rangani_92410133006_front.jpg",
+            "registered_faces\\Aryan_Rangani_92410133006_left.jpg",
+            "registered_faces\\Aryan_Rangani_92410133006_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Aryan_Vaghasana_92410133009": {
+        "name": "Aryan Vaghasana",
+        "employee_id": "92410133009",
+        "image_paths": [
+            "registered_faces\\Aryan_Vaghasana_92410133009_front.jpg",
+            "registered_faces\\Aryan_Vaghasana_92410133009_left.jpg",
+            "registered_faces\\Aryan_Vaghasana_92410133009_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Ashutosh_Kumar_Singh_92301733016": {
+        "name": "Ashutosh Kumar Singh",
+        "employee_id": "92301733016",
+        "image_paths": [
+            "registered_faces\\Ashutosh_Kumar_Singh_92301733016_front.jpg",
+            "registered_faces\\Ashutosh_Kumar_Singh_92301733016_left.jpg",
+            "registered_faces\\Ashutosh_Kumar_Singh_92301733016_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Bhargav_Limbani_92301733029": {
+        "name": "Bhargav Limbani",
+        "employee_id": "92301733029",
+        "image_paths": [
+            "registered_faces\\Bhargav_Limbani_92301733029_front.jpg",
+            "registered_faces\\Bhargav_Limbani_92301733029_left.jpg",
+            "registered_faces\\Bhargav_Limbani_92301733029_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Bhavarth_Pandya_92410133021": {
+        "name": "Bhavarth Pandya",
+        "employee_id": "92410133021",
+        "image_paths": [
+            "registered_faces\\Bhavarth_Pandya_92410133021_front.jpg",
+            "registered_faces\\Bhavarth_Pandya_92410133021_left.jpg",
+            "registered_faces\\Bhavarth_Pandya_92410133021_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Chan_Evan_92301733072": {
+        "name": "Chan Evan",
+        "employee_id": "92301733072",
+        "image_paths": [
+            "registered_faces\\Chan_Evan_92301733072_front.jpg",
+            "registered_faces\\Chan_Evan_92301733072_left.jpg",
+            "registered_faces\\Chan_Evan_92301733072_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Darshan_Bhanderi_92301733034": {
+        "name": "Darshan Bhanderi",
+        "employee_id": "92301733034",
+        "image_paths": [
+            "registered_faces\\Darshan_Bhanderi_92301733034_front.jpg",
+            "registered_faces\\Darshan_Bhanderi_92301733034_left.jpg",
+            "registered_faces\\Darshan_Bhanderi_92301733034_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Denisa_Recama_92301733007": {
+        "name": "Denisa Recama",
+        "employee_id": "92301733007",
+        "image_paths": [
+            "registered_faces\\Denisa_Recama_92301733007_front.jpg",
+            "registered_faces\\Denisa_Recama_92301733007_left.jpg",
+            "registered_faces\\Denisa_Recama_92301733007_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Dhyana_Kothari_923031733031": {
+        "name": "Dhyana Kothari",
+        "employee_id": "923031733031",
+        "image_paths": [
+            "registered_faces\\Dhyana_Kothari_923031733031_front.jpg",
+            "registered_faces\\Dhyana_Kothari_923031733031_left.jpg",
+            "registered_faces\\Dhyana_Kothari_923031733031_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Dinesh_Kevalramani_92301733002": {
+        "name": "Dinesh Kevalramani",
+        "employee_id": "92301733002",
+        "image_paths": [
+            "registered_faces\\Dinesh_Kevalramani_92301733002_front.jpg",
+            "registered_faces\\Dinesh_Kevalramani_92301733002_left.jpg",
+            "registered_faces\\Dinesh_Kevalramani_92301733002_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Duclas_Matsinhe_92301733004": {
+        "name": "Duclas Matsinhe",
+        "employee_id": "92301733004",
+        "image_paths": [
+            "registered_faces\\Duclas_Matsinhe_92301733004_front.jpg",
+            "registered_faces\\Duclas_Matsinhe_92301733004_left.jpg",
+            "registered_faces\\Duclas_Matsinhe_92301733004_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Gouri_Unnithan_92301733048": {
+        "name": "Gouri Unnithan",
+        "employee_id": "92301733048",
+        "image_paths": [
+            "registered_faces\\Gouri_Unnithan_92301733048_front.jpg",
+            "registered_faces\\Gouri_Unnithan_92301733048_left.jpg",
+            "registered_faces\\Gouri_Unnithan_92301733048_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Happy_Limbasiya_92301733033": {
+        "name": "Happy Limbasiya",
+        "employee_id": "92301733033",
+        "image_paths": [
+            "registered_faces\\Happy_Limbasiya_92301733033_front.jpg",
+            "registered_faces\\Happy_Limbasiya_92301733033_left.jpg",
+            "registered_faces\\Happy_Limbasiya_92301733033_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Harshil_Domadiya_92301733069": {
+        "name": "Harshil Domadiya",
+        "employee_id": "92301733069",
+        "image_paths": [
+            "registered_faces\\Harshil_Domadiya_92301733069_front.jpg",
+            "registered_faces\\Harshil_Domadiya_92301733069_left.jpg",
+            "registered_faces\\Harshil_Domadiya_92301733069_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Harsh_Trivedi_92301733017": {
+        "name": "Harsh Trivedi",
+        "employee_id": "92301733017",
+        "image_paths": [
+            "registered_faces\\Harsh_Trivedi_92301733017_front.jpg",
+            "registered_faces\\Harsh_Trivedi_92301733017_left.jpg",
+            "registered_faces\\Harsh_Trivedi_92301733017_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Helena_Chongo_92301733005": {
+        "name": "Helena Chongo",
+        "employee_id": "92301733005",
+        "image_paths": [
+            "registered_faces\\Helena_Chongo_92301733005_front.jpg",
+            "registered_faces\\Helena_Chongo_92301733005_left.jpg",
+            "registered_faces\\Helena_Chongo_92301733005_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Hircel_Cirzeth_Virgilio_Zacarias_92301733011": {
+        "name": "Hircel Cirzeth Virgilio Zacarias",
+        "employee_id": "92301733011",
+        "image_paths": [
+            "registered_faces\\Hircel_Cirzeth_Virgilio_Zacarias_92301733011_front.jpg",
+            "registered_faces\\Hircel_Cirzeth_Virgilio_Zacarias_92301733011_left.jpg",
+            "registered_faces\\Hircel_Cirzeth_Virgilio_Zacarias_92301733011_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Hitarthi_Pansuriya_92301733045": {
+        "name": "Hitarthi Pansuriya",
+        "employee_id": "92301733045",
+        "image_paths": [
+            "registered_faces\\Hitarthi_Pansuriya_92301733045_front.jpg",
+            "registered_faces\\Hitarthi_Pansuriya_92301733045_left.jpg",
+            "registered_faces\\Hitarthi_Pansuriya_92301733045_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Isha_Savaliya_92301733024": {
+        "name": "Isha Savaliya",
+        "employee_id": "92301733024",
+        "image_paths": [
+            "registered_faces\\Isha_Savaliya_92301733024_front.jpg",
+            "registered_faces\\Isha_Savaliya_92301733024_left.jpg",
+            "registered_faces\\Isha_Savaliya_92301733024_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Jenish_Khakhkhar_92301733044": {
+        "name": "Jenish Khakhkhar",
+        "employee_id": "92301733044",
+        "image_paths": [
+            "registered_faces\\Jenish_Khakhkhar_92301733044_front.jpg",
+            "registered_faces\\Jenish_Khakhkhar_92301733044_left.jpg",
+            "registered_faces\\Jenish_Khakhkhar_92301733044_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Karmadipsinh_Jadeja_92301733023": {
+        "name": "Karmadipsinh Jadeja",
+        "employee_id": "92301733023",
+        "image_paths": [
+            "registered_faces\\Karmadipsinh_Jadeja_92301733023_front.jpg",
+            "registered_faces\\Karmadipsinh_Jadeja_92301733023_left.jpg",
+            "registered_faces\\Karmadipsinh_Jadeja_92301733023_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Kaushal_parmar_92301733015": {
+        "name": "Kaushal parmar",
+        "employee_id": "92301733015",
+        "image_paths": [
+            "registered_faces\\Kaushal_parmar_92301733015_front.jpg",
+            "registered_faces\\Kaushal_parmar_92301733015_left.jpg",
+            "registered_faces\\Kaushal_parmar_92301733015_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Kavya_Thakar_92301733066": {
+        "name": "Kavya Thakar",
+        "employee_id": "92301733066",
+        "image_paths": [
+            "registered_faces\\Kavya_Thakar_92301733066_front.jpg",
+            "registered_faces\\Kavya_Thakar_92301733066_left.jpg",
+            "registered_faces\\Kavya_Thakar_92301733066_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Kirti_Shingala_92301733061": {
+        "name": "Kirti Shingala",
+        "employee_id": "92301733061",
+        "image_paths": [
+            "registered_faces\\Kirti_Shingala_92301733061_front.jpg",
+            "registered_faces\\Kirti_Shingala_92301733061_left.jpg",
+            "registered_faces\\Kirti_Shingala_92301733061_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Krushang_Savaliya_92301733060": {
+        "name": "Krushang Savaliya",
+        "employee_id": "92301733060",
+        "image_paths": [
+            "registered_faces\\Krushang_Savaliya_92301733060_front.jpg",
+            "registered_faces\\Krushang_Savaliya_92301733060_left.jpg",
+            "registered_faces\\Krushang_Savaliya_92301733060_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Lordwin_Joseph_92301733065": {
+        "name": "Lordwin Joseph",
+        "employee_id": "92301733065",
+        "image_paths": [
+            "registered_faces\\Lordwin_Joseph_92301733065_front.jpg",
+            "registered_faces\\Lordwin_Joseph_92301733065_left.jpg",
+            "registered_faces\\Lordwin_Joseph_92301733065_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Madhuri_Sangani_92410133013": {
+        "name": "Madhuri Sangani",
+        "employee_id": "92410133013",
+        "image_paths": [
+            "registered_faces\\Madhuri_Sangani_92410133013_front.jpg",
+            "registered_faces\\Madhuri_Sangani_92410133013_left.jpg",
+            "registered_faces\\Madhuri_Sangani_92410133013_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Mayur_Khandla_92301733040": {
+        "name": "Mayur Khandla",
+        "employee_id": "92301733040",
+        "image_paths": [
+            "registered_faces\\Mayur_Khandla_92301733040_front.jpg",
+            "registered_faces\\Mayur_Khandla_92301733040_left.jpg",
+            "registered_faces\\Mayur_Khandla_92301733040_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Meet_LImbani_92301733030": {
+        "name": "Meet LImbani",
+        "employee_id": "92301733030",
+        "image_paths": [
+            "registered_faces\\Meet_LImbani_92301733030_front.jpg",
+            "registered_faces\\Meet_LImbani_92301733030_left.jpg",
+            "registered_faces\\Meet_LImbani_92301733030_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Mihir_Mithani_92301733025": {
+        "name": "Mihir Mithani",
+        "employee_id": "92301733025",
+        "image_paths": [
+            "registered_faces\\Mihir_Mithani_92301733025_front.jpg",
+            "registered_faces\\Mihir_Mithani_92301733025_left.jpg",
+            "registered_faces\\Mihir_Mithani_92301733025_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Milan_Jani_92301733041": {
+        "name": "Milan Jani",
+        "employee_id": "92301733041",
+        "image_paths": [
+            "registered_faces\\Milan_Jani_92301733041_front.jpg",
+            "registered_faces\\Milan_Jani_92301733041_left.jpg",
+            "registered_faces\\Milan_Jani_92301733041_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Mit_solanki_92301733013": {
+        "name": "Mit solanki",
+        "employee_id": "92301733013",
+        "image_paths": [
+            "registered_faces\\Mit_solanki_92301733013_front.jpg",
+            "registered_faces\\Mit_solanki_92301733013_left.jpg",
+            "registered_faces\\Mit_solanki_92301733013_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Nikhil_Bhnaderi_92301733054": {
+        "name": "Nikhil Bhnaderi",
+        "employee_id": "92301733054",
+        "image_paths": [
+            "registered_faces\\Nikhil_Bhnaderi_92301733054_front.jpg",
+            "registered_faces\\Nikhil_Bhnaderi_92301733054_left.jpg",
+            "registered_faces\\Nikhil_Bhnaderi_92301733054_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Niki_Majithiya_92301733036": {
+        "name": "Niki Majithiya",
+        "employee_id": "92301733036",
+        "image_paths": [
+            "registered_faces\\Niki_Majithiya_92301733036_front.jpg",
+            "registered_faces\\Niki_Majithiya_92301733036_left.jpg",
+            "registered_faces\\Niki_Majithiya_92301733036_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Om_Kasvala_92410133005": {
+        "name": "Om Kasvala",
+        "employee_id": "92410133005",
+        "image_paths": [
+            "registered_faces\\Om_Kasvala_92410133005_front.jpg",
+            "registered_faces\\Om_Kasvala_92410133005_left.jpg",
+            "registered_faces\\Om_Kasvala_92410133005_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Om_Makadiya_92301733022": {
+        "name": "Om Makadiya",
+        "employee_id": "92301733022",
+        "image_paths": [
+            "registered_faces\\Om_Makadiya_92301733022_front.jpg",
+            "registered_faces\\Om_Makadiya_92301733022_left.jpg",
+            "registered_faces\\Om_Makadiya_92301733022_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Payal_Makwana_92301733057": {
+        "name": "Payal Makwana",
+        "employee_id": "92301733057",
+        "image_paths": [
+            "registered_faces\\Payal_Makwana_92301733057_front.jpg",
+            "registered_faces\\Payal_Makwana_92301733057_left.jpg",
+            "registered_faces\\Payal_Makwana_92301733057_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Poojan_mori_92410133036": {
+        "name": "Poojan mori",
+        "employee_id": "92410133036",
+        "image_paths": [
+            "registered_faces\\Poojan_mori_92410133036_front.jpg",
+            "registered_faces\\Poojan_mori_92410133036_left.jpg",
+            "registered_faces\\Poojan_mori_92410133036_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Raj_Tala_92301733047": {
+        "name": "Raj Tala",
+        "employee_id": "92301733047",
+        "image_paths": [
+            "registered_faces\\Raj_Tala_92301733047_front.jpg",
+            "registered_faces\\Raj_Tala_92301733047_left.jpg",
+            "registered_faces\\Raj_Tala_92301733047_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Rohan_Makwana_92301733053": {
+        "name": "Rohan Makwana",
+        "employee_id": "92301733053",
+        "image_paths": [
+            "registered_faces\\Rohan_Makwana_92301733053_front.jpg",
+            "registered_faces\\Rohan_Makwana_92301733053_left.jpg",
+            "registered_faces\\Rohan_Makwana_92301733053_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Saurabh_Bhuptani_92301733052": {
+        "name": "Saurabh Bhuptani",
+        "employee_id": "92301733052",
+        "image_paths": [
+            "registered_faces\\Saurabh_Bhuptani_92301733052_front.jpg",
+            "registered_faces\\Saurabh_Bhuptani_92301733052_left.jpg",
+            "registered_faces\\Saurabh_Bhuptani_92301733052_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Shivam_Bhatt_92301733046": {
+        "name": "Shivam Bhatt",
+        "employee_id": "92301733046",
+        "image_paths": [
+            "registered_faces\\Shivam_Bhatt_92301733046_front.jpg",
+            "registered_faces\\Shivam_Bhatt_92301733046_left.jpg",
+            "registered_faces\\Shivam_Bhatt_92301733046_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "tanvi_kakadiya_92301733051": {
+        "name": "tanvi kakadiya",
+        "employee_id": "92301733051",
+        "image_paths": [
+            "registered_faces\\tanvi_kakadiya_92301733051_front.jpg",
+            "registered_faces\\tanvi_kakadiya_92301733051_left.jpg",
+            "registered_faces\\tanvi_kakadiya_92301733051_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Tirth_Patel_92410133002": {
+        "name": "Tirth Patel",
+        "employee_id": "92410133002",
+        "image_paths": [
+            "registered_faces\\Tirth_Patel_92410133002_front.jpg",
+            "registered_faces\\Tirth_Patel_92410133002_left.jpg",
+            "registered_faces\\Tirth_Patel_92410133002_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Yash_Vekariya_92301733021": {
+        "name": "Yash Vekariya",
+        "employee_id": "92301733021",
+        "image_paths": [
+            "registered_faces\\Yash_Vekariya_92301733021_front.jpg",
+            "registered_faces\\Yash_Vekariya_92301733021_left.jpg",
+            "registered_faces\\Yash_Vekariya_92301733021_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Yurica_Caetano_92301733008": {
+        "name": "Yurica Caetano",
+        "employee_id": "92301733008",
+        "image_paths": [
+            "registered_faces\\Yurica_Caetano_92301733008_front.jpg",
+            "registered_faces\\Yurica_Caetano_92301733008_left.jpg",
+            "registered_faces\\Yurica_Caetano_92301733008_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Zeenat_Abdulcadre_92301733006": {
+        "name": "Zeenat Abdulcadre",
+        "employee_id": "92301733006",
+        "image_paths": [
+            "registered_faces\\Zeenat_Abdulcadre_92301733006_front.jpg",
+            "registered_faces\\Zeenat_Abdulcadre_92301733006_left.jpg",
+            "registered_faces\\Zeenat_Abdulcadre_92301733006_right.jpg"
+        ],
+        "registered": "imported-from-disk"
+    },
+    "Ansh_Raythatha_92301733042": {
+        "name": "Ansh Raythatha",
+        "employee_id": "92301733042",
+        "image_paths": [
+            "registered_faces\\Ansh_Raythatha_92301733042_front.jpg",
+            "registered_faces\\Ansh_Raythatha_92301733042_left.jpg",
+            "registered_faces\\Ansh_Raythatha_92301733042_right.jpg"
+        ],
+        "registered": "2026-03-30 12:03:38"
     }
 }
