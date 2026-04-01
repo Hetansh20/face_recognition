@@ -1,0 +1,44 @@
+{% extends "admin_base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h2>System Overview</h2>
+
+<div class="grid-cards">
+    <div class="stat-card stat-blue">
+        <p>Total Sessions</p>
+        <h3>{{ stats.total_sessions }}</h3>
+    </div>
+    <div class="stat-card stat-green">
+        <p>Average Attendance</p>
+        <h3>{{ stats.average_attendance|round(1) }}%</h3>
+    </div>
+    <div class="stat-card stat-purple">
+        <p>Total Marked</p>
+        <h3>{{ stats.total_marked }}</h3>
+    </div>
+</div>
+
+<div class="grid-cards">
+    <div class="stat-card" style="text-align: left;">
+        <h4 style="color: var(--accent-blue);">Top Students</h4>
+        <ul>
+            {% for name, count in stats.top_students %}
+                <li>{{ name }} ({{ count }} sessions)</li>
+            {% else %}
+                <li style="color: var(--text-muted);">No data yet</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="stat-card" style="text-align: left;">
+        <h4 style="color: var(--accent-red);">Low Attendance Alerts (<75%)</h4>
+        <ul>
+            {% for name, rate in stats.low_attendance_students %}
+                <li style="color: var(--accent-red);">{{ name }} — {{ rate|round(1) }}%</li>
+            {% else %}
+                <li style="color: var(--accent-green);">All good!</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

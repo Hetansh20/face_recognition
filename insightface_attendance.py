@@ -35,11 +35,18 @@ def _l2_normalize(x):
     return x / (np.linalg.norm(x) + 1e-10)
 
 class InsightFaceAttendanceSystem:
-    def __init__(self, root):
+    def __init__(self, root, timetable_id=None, session_id=None, on_attendance_marked=None):
         self.root = root
         self.root.title("InsightFace Attendance System — Lightning Fast")
         self.root.geometry("1200x720")
         self.root.configure(bg='#0d1117')
+
+        # ── Optional SQLite integration (set by faculty_ui.py) ──────────────
+        # When timetable_id is provided, recognised faces are also written to
+        # the `attendance` table in attendance_system.db in addition to CSV.
+        self.timetable_id          = timetable_id
+        self.session_id            = session_id
+        self.on_attendance_marked  = on_attendance_marked  # callback(name)
 
         # State
         self.camera           = None
@@ -711,6 +718,7 @@ class InsightFaceAttendanceSystem:
         today = datetime.now().strftime("%Y-%m-%d")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Check if already logged today in CSV
         if os.path.exists(self.attendance_file):
             try:
                 with open(self.attendance_file, 'r') as f:
@@ -720,6 +728,7 @@ class InsightFaceAttendanceSystem:
             except Exception:
                 pass
 
+        # ── Write to CSV (always allowed if recognized) ─────────────────────
         try:
             is_new = not os.path.exists(self.attendance_file)
             with open(self.attendance_file, 'a') as f:
@@ -727,7 +736,68 @@ class InsightFaceAttendanceSystem:
                     f.write("Timestamp,Name,EmployeeID,PersonID\n")
                 f.write(f"{timestamp},{info['name']},{info.get('employee_id','')},{person_id}\n")
         except Exception as e:
-            print(f"[Log] Error: {e}")
+            print(f"[Log] CSV error: {e}")
+
+        # ── Write to SQLite when in a faculty session ────────────────────────
+        if self.timetable_id is not None:
+            try:
+                from database import Database
+                db = Database()
+
+                # Resolve person_id → SQLite student row by matching student_id field
+                students = db.get_all_students() or []
+                emp_id   = info.get('employee_id', '').strip()
+                student_row = None
+
+                # Try matching by employee_id (stored as student_id in DB)
+                if emp_id:
+                    student_row = db.get_student_by_student_id(emp_id)
+
+                # Fallback: match by name
+                if not student_row:
+                    name_lower = info['name'].lower()
+                    for s in students:
+                        if s[2].lower() == name_lower:
+                            student_row = s
+                            break
+
+                if student_row:
+                    db.mark_attendance(
+                        student_id=student_row[0],
+                        timetable_id=self.timetable_id,
+                        confidence_score=None
+                    )
+                    print(f"[Log] SQLite attendance marked: {info['name']}")
+                else:
+                    # Auto-register the student directly into the DB so they appear in live counts
+                    if not emp_id:
+                        import time
+                        emp_id = 'AUTO_' + info['name'].replace(' ', '_') + str(int(time.time()))
+                    try:
+                        new_student_pk = db.add_student(
+                            student_id=emp_id,
+                            name=info['name'],
+                            email=f"{emp_id}@auto.reg",
+                            department="InsightFace Auto-Reg"
+                        )
+                        db.mark_attendance(
+                            student_id=new_student_pk,
+                            timetable_id=self.timetable_id,
+                            confidence_score=None
+                        )
+                        print(f"[Log] Auto-Registered & Marked in SQLite: {info['name']}")
+                    except Exception as reg_err:
+                        print(f"[Log] Could not auto-register {info['name']}: {reg_err}")
+
+            except Exception as e:
+                print(f"[Log] SQLite error: {e}")
+
+        # ── Fire callback to update FacultySessionWindow counter ─────────────
+        if self.on_attendance_marked:
+            try:
+                self.root.after(0, lambda n=info['name']: self.on_attendance_marked(n))
+            except Exception:
+                pass
 
         return False
 
@@ -926,9 +996,18 @@ def main():
     print("  4. Click 'Start Recognition'")
     print()
 
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--timetable-id", type=int, default=None, help="The SQLite DB timetable ID to link attendance to.")
+    parser.add_argument("--session-id", type=int, default=None, help="The SQLite DB session ID.")
+    args = parser.parse_args()
+
+    # Disable annoying warnings
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
     try:
         root = tk.Tk()
-        app  = InsightFaceAttendanceSystem(root)
+        app  = InsightFaceAttendanceSystem(root, timetable_id=args.timetable_id, session_id=args.session_id)
         root.protocol("WM_DELETE_WINDOW", app.cleanup)
         root.mainloop()
     except Exception as e:

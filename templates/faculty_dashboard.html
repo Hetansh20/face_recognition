@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Dashboard — InsightFace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand" style="font-size: 1.25rem; font-weight: 600; color: var(--accent-blue);">
+            👨‍🏫 Welcome, {{ faculty_name }}
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('faculty_logout') }}" style="color: var(--accent-red);">Logout</a>
+        </div>
+    </nav>
+    
+    <div class="container" style="max-width: 800px;">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Attendance Dashboard</h2>
+        
+        {% if active_class %}
+        <div style="background: var(--bg-card); padding: 2.5rem; border-radius: var(--radius-lg); border: 2px solid var(--accent-green); text-align: center; box-shadow: var(--shadow-md);">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🟢</div>
+            <h3 style="color: var(--accent-green);">Active Class Detected</h3>
+            <p style="font-size: 1.2rem; color: white; font-weight: bold;">{{ active_class.class_name }}</p>
+            <p style="margin-bottom: 2rem;">Scheduled Time: {{ active_class.time }}</p>
+            
+            <div style="margin-bottom: 2rem; padding: 1rem; background: var(--bg-primary); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <p style="margin: 0; font-size: 0.9rem;">Present Count</p>
+                <h1 style="color: var(--accent-blue); font-size: 4rem; margin: 0;" id="presentCount">0</h1>
+            </div>
+            
+            <button id="startBtn" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem; margin-bottom: 1rem;">
+                ▶ Start Face Recognition
+            </button>
+            <div id="start-alert" class="alert" style="display: none; text-align: left;"></div>
+            
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button id="exportBtn" class="btn btn-success" style="flex: 1;">📁 Export CSV</button>
+            </div>
+            <div id="export-alert" class="alert" style="display: none; text-align: left; margin-top: 1rem;"></div>
+        </div>
+        
+        <script>
+            // Polling for attendance updates
+            setInterval(async () => {
+                try {
+                    const res = await fetch('{{ url_for("api_session_status") }}');
+                    const data = await res.json();
+                    document.getElementById('presentCount').innerText = data.present_count;
+                } catch(e) {}
+            }, 3000);
+            
+            // Start Recognition Windows
+            document.getElementById('startBtn').addEventListener('click', async () => {
+                const btn = document.getElementById('startBtn');
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Launching Host Window...';
+                
+                try {
+                    const res = await fetch('{{ url_for("api_start_recognition") }}', { method: 'POST' });
+                    const data = await res.json();
+                    
+                    const alertEl = document.getElementById('start-alert');
+                    alertEl.style.display = 'block';
+                    alertEl.textContent = data.message;
+                    alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
+                } catch(e) {
+                    console.error(e);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '▶ Start Face Recognition';
+                }
+            });
+            
+            // Export CSV
+            document.getElementById('exportBtn').addEventListener('click', async () => {
+                const btn = document.getElementById('exportBtn');
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Generating...';
+                
+                try {
+                    const res = await fetch('{{ url_for("api_faculty_export_csv") }}', { method: 'POST' });
+                    const data = await res.json();
+                    
+                    const alertEl = document.getElementById('export-alert');
+                    alertEl.style.display = 'block';
+                    alertEl.textContent = data.message;
+                    alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
+                } catch(e) {
+                    console.error(e);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = '📁 Export CSV';
+                }
+            });
+        </script>
+        {% else %}
+        <div style="background: var(--bg-card); padding: 3rem 2rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem; filter: grayscale(1);">⏸</div>
+            <h3 style="color: var(--text-muted);">No Active Session Found</h3>
+            <p>You don't have any classes scheduled at this time. Please check your timetable.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

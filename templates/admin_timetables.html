@@ -1,0 +1,124 @@
+{% extends "admin_base.html" %}
+{% block title %}Timetables{% endblock %}
+
+{% block content %}
+<h2>Manage Timetables</h2>
+<p>Class schedules are used to automatically detect the active session when a faculty logs in.</p>
+
+<div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
+    <h3 style="color: var(--accent-gold);">📅 Add Timetable Entry</h3>
+    <div id="tt-alert" class="alert" style="display: none;"></div>
+    
+    <form id="ttForm" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: end;">
+        <div class="form-group" style="margin: 0;">
+            <label>Faculty</label>
+            <select id="t_faculty" required>
+                <option value="" disabled selected>Select Faculty...</option>
+                {% for f in faculties %}
+                    <option value="{{ f[0] }}">{{ f[1] }} ({{ f[2] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin: 0;">
+            <label>Class Name</label>
+            <input type="text" id="t_class" placeholder="e.g., CS101" required>
+        </div>
+        <div class="form-group" style="margin: 0;">
+            <label>Day of Week</label>
+            <select id="t_day" required>
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin: 0;">
+            <label>Start Time (HH:MM)</label>
+            <input type="time" id="t_start" required>
+        </div>
+        <div class="form-group" style="margin: 0;">
+            <label>End Time (HH:MM)</label>
+            <input type="time" id="t_end" required>
+        </div>
+        <div class="form-group" style="margin: 0;">
+            <label>Room Number</label>
+            <input type="text" id="t_room" placeholder="Optional">
+        </div>
+        <div style="grid-column: span 3; margin-top: 1rem;">
+            <button type="submit" class="btn btn-primary" style="background: var(--accent-gold);">Add Entry</button>
+        </div>
+    </form>
+</div>
+
+<h3>Current Timetables</h3>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Faculty</th>
+                <th>Class</th>
+                <th>Day</th>
+                <th>Time Window</th>
+                <th>Room</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in timetables %}
+            <tr>
+                <td>{{ t.id }}</td>
+                <td>{{ t.faculty_name }}</td>
+                <td>{{ t.class_name }}</td>
+                <td>{{ t.day }}</td>
+                <td>{{ t.start }} - {{ t.end }}</td>
+                <td>{{ t.room or 'N/A' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No timetables created yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+document.getElementById('ttForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    
+    const body = {
+        faculty_id: document.getElementById('t_faculty').value,
+        class_name: document.getElementById('t_class').value,
+        day: document.getElementById('t_day').value,
+        start_time: document.getElementById('t_start').value,
+        end_time: document.getElementById('t_end').value,
+        room: document.getElementById('t_room').value
+    };
+    
+    try {
+        const res = await fetch('{{ url_for("api_add_timetable") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        
+        const alertEl = document.getElementById('tt-alert');
+        alertEl.style.display = 'block';
+        alertEl.textContent = data.message;
+        alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
+        
+        if (data.success) {
+            setTimeout(() => window.location.reload(), 1000);
+        }
+    } catch (err) {
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+    }
+});
+</script>
+{% endblock %}

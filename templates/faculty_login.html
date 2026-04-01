@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Login — InsightFace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <h2 style="text-align: center; color: var(--accent-blue);">Faculty Portal</h2>
+        <p style="text-align: center; margin-bottom: 2rem;">Sign in to start your class session</p>
+        
+        <div id="error-alert" class="alert alert-error" style="display: none;"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="email" required>
+            </div>
+            <div class="form-group">
+                <label>Passcode</label>
+                <input type="password" id="passcode" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 1.5rem;">
+            <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">← Back to Home</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.textContent = 'Authenticating...';
+            btn.disabled = true;
+
+            const opts = {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    passcode: document.getElementById('passcode').value
+                })
+            };
+
+            try {
+                const res = await fetch('{{ url_for("faculty_login") }}', opts);
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = '{{ url_for("faculty_dashboard") }}';
+                } else {
+                    const err = document.getElementById('error-alert');
+                    err.style.display = 'block';
+                    err.textContent = data.message;
+                    btn.textContent = 'Login';
+                    btn.disabled = false;
+                }
+            } catch(err) {
+                console.error(err);
+                btn.textContent = 'Login';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InsightFace Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .landing-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .landing-title { font-size: 3rem; margin-bottom: 0.5rem; color: var(--accent-blue); }
+        .landing-subtitle { font-size: 1.2rem; margin-bottom: 3rem; color: var(--text-muted); }
+        .roles-grid {
+            display: flex;
+            gap: 2rem;
+            max-width: 800px;
+        }
+        .role-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 3rem 2rem;
+            width: 300px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+        .role-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent-blue);
+        }
+        .role-icon { font-size: 4rem; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="landing-container">
+        <h1 class="landing-title">InsightFace Attendance</h1>
+        <p class="landing-subtitle">High-accuracy, enterprise-ready contactless attendance.</p>
+        
+        <div class="roles-grid">
+            <a href="{{ url_for('faculty_login') }}" class="role-card">
+                <div class="role-icon">👨‍🏫</div>
+                <h2>Faculty Portal</h2>
+                <p>Start sessions and run real-time face recognition.</p>
+            </a>
+            
+            <a href="{{ url_for('admin_login') }}" class="role-card">
+                <div class="role-icon">⚙️</div>
+                <h2>Admin Dashboard</h2>
+                <p>Manage users, timetables, and system analytics.</p>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{% extends "admin_base.html" %}
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<h2>Reports & Export</h2>
+
+<div class="grid-cards" style="align-items: flex-start;">
+    <!-- Export CSV -->
+    <div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+        <h3 style="color: var(--accent-green);">📁 Full Database Export</h3>
+        <p>Export all registered attendance data across all faculties into a single CSV report.</p>
+        
+        <div id="export-alert" class="alert" style="display: none; margin-top: 1rem;"></div>
+        
+        <button id="exportBtn" class="btn btn-success" style="margin-top: 1.5rem;">Export All Attendance to CSV</button>
+    </div>
+</div>
+
+<script>
+document.getElementById('exportBtn').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    
+    try {
+        const res = await fetch('{{ url_for("api_admin_export") }}', { method: 'POST' });
+        const data = await res.json();
+        
+        const alertEl = document.getElementById('export-alert');
+        alertEl.style.display = 'block';
+        alertEl.textContent = data.message;
+        alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
+    } catch (err) {
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Export All Attendance to CSV';
+    }
+});
+</script>
+{% endblock %}
