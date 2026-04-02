@@ -64,6 +64,21 @@ class FaceEngine:
             self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
             self.is_running = True
             self.status_message = "Active — Scanning..."
+            
+            self.latest_frame = None
+            self.latest_faces = []
+            self.current_winner = None
+            
+            import threading
+            threading.Thread(target=self.inference_loop, daemon=True).start()
+
+    def inference_loop(self):
+        """Background thread for processing frames so camera stream doesn't lag."""
+        while self.is_running:
+            if getattr(self, 'latest_frame', None) is not None:
+                frame_to_process = self.latest_frame.copy()
+                self._run_inference(frame_to_process)
+            time.sleep(0.1)
 
     def generate_frames(self):
         """Generator that yields JPG frames for Flask MJPEG endpoint."""
@@ -72,22 +87,29 @@ class FaceEngine:
             if not success:
                 break
             else:
-                # Process frame for faces
-                processed_frame = self.process_frame(frame)
-                ret, buffer = cv2.imencode('.jpg', processed_frame)
+                self.latest_frame = frame.copy()
+                
+                # Draw HUD based on latest background inference
+                faces = getattr(self, 'latest_faces', [])
+                winner = getattr(self, 'current_winner', None)
+                viz = self.draw_hud(frame, faces, winner)
+                
+                ret, buffer = cv2.imencode('.jpg', viz)
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.03)
+            time.sleep(0.01)
 
-    def process_frame(self, frame):
-        """Runs InsightFace + Attendance logic and draws onto frame"""
+    def _run_inference(self, frame):
+        """Runs InsightFace + Attendance logic asynchronously"""
         try:
             faces = self.face_app.get(frame)
             if not faces:
                 self.status_message = "No faces detected"
-                return self.draw_hud(frame, [])
+                self.latest_faces = []
+                return
                 
+            self.latest_faces = faces
             # Focus simply on the largest face in frame for fast logic
             best_face = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
             live_vec = _l2_normalize(best_face.embedding.astype(np.float32))
@@ -105,7 +127,7 @@ class FaceEngine:
 
             if not all_dists:
                 self.status_message = "No reference embeddings loaded"
-                return self.draw_hud(frame, faces)
+                return
 
             all_dists.sort(key=lambda x: x[1])
             best_pid, best_dist = all_dists[0]
@@ -134,6 +156,8 @@ class FaceEngine:
                 if best_cand[1] >= 4:
                     winner_pid = best_cand[0]
                     
+            self.current_winner = winner_pid
+                    
             if winner_pid:
                 self.trigger_attendance(winner_pid)
                 info = self.database.get(winner_pid, {})
@@ -145,11 +169,8 @@ class FaceEngine:
             else:
                 self.status_message = "Collecting votes..."
                 
-            return self.draw_hud(frame, faces, winner_pid)
-            
         except Exception as e:
-            print(f"[FaceEngine] Error: {e}")
-            return frame
+            print(f"[FaceEngine Inference] Error: {e}")
 
     def draw_hud(self, frame, faces, current_winner=None):
         """Draw bounding boxes cleanly onto the frame"""
