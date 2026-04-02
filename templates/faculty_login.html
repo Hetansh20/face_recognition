@@ -45,7 +45,7 @@
                 const res = await fetch('{{ url_for("faculty_login") }}', opts);
                 const data = await res.json();
                 if (data.success) {
-                    window.location.href = '{{ url_for("faculty_dashboard") }}';
+                    window.location.href = '{{ url_for("faculty_active_session") }}';
                 } else {
                     const err = document.getElementById('error-alert');
                     err.style.display = 'block';

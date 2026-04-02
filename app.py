@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response
 import os
 import subprocess
 from datetime import datetime
@@ -12,6 +12,14 @@ app.secret_key = os.urandom(24)
 
 # Native process tracking to prevent multiple windows
 ACTIVE_PROCESSES = {}
+
+# Face recognition single-threaded video stream
+try:
+    from face_engine import FaceEngine
+except ImportError:
+    FaceEngine = None
+    
+ACTIVE_ENGINE = None
 
 def get_db():
     return Database()
@@ -162,14 +170,11 @@ def faculty_login():
                     "time": f"{active_class[4]} - {active_class[5]}"
                 }
                 
-                # Check if process exists to avoid duplicate launches
-                if sid not in ACTIVE_PROCESSES or ACTIVE_PROCESSES[sid].poll() is not None:
-                    try:
-                        cmd = ["python", "insightface_attendance.py", "--timetable-id", str(tid), "--session-id", str(sid), "--auto-start"]
-                        proc = subprocess.Popen(cmd)
-                        ACTIVE_PROCESSES[sid] = proc
-                    except Exception as e:
-                        print(f"[AutoStart Error] {e}")
+                # Natively turn on the camera via MJPEG FaceEngine
+                global ACTIVE_ENGINE
+                if FaceEngine is not None and (ACTIVE_ENGINE is None or not ACTIVE_ENGINE.is_running):
+                    ACTIVE_ENGINE = FaceEngine(timetable_id=tid, session_id=sid)
+                    ACTIVE_ENGINE.start()
 
             return jsonify({"success": True})
         return jsonify({"success": False, "message": msg})
@@ -211,44 +216,48 @@ def faculty_dashboard():
                            active_class=session_info)
 
 # FACULTY API
-@app.route("/api/faculty/start_recognition", methods=["POST"])
+@app.route("/faculty/active_session")
 @faculty_required
-def api_start_recognition():
-    session_info = session.get('active_session')
-    if not session_info:
-        return jsonify({"success": False, "message": "No active class session found."})
-    
-    tid = session_info['timetable_id']
-    sid = session_info['session_id']
-    
-    # Check if a process is already running for this session
-    if sid in ACTIVE_PROCESSES and ACTIVE_PROCESSES[sid].poll() is None:
-        return jsonify({"success": False, "message": "Recognition window is already open!"})
-        
-    try:
-        # Launch the native OpenCV script decoupled from Web Server thread
-        cmd = ["python", "insightface_attendance.py", "--timetable-id", str(tid), "--session-id", str(sid)]
-        proc = subprocess.Popen(cmd)
-        ACTIVE_PROCESSES[sid] = proc
-        return jsonify({"success": True, "message": "Face recognition window opened natively on host!"})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
+def faculty_active_session():
+    return render_template("faculty_active_session.html", 
+                           faculty_name=session.get('faculty_name'),
+                           active_class=session.get('active_session'))
 
-@app.route("/api/faculty/session_status", methods=["GET"])
+@app.route("/video_feed")
 @faculty_required
-def api_session_status():
-    session_info = session.get('active_session')
-    if not session_info:
-        return jsonify({"present_count": 0})
+def video_feed():
+    global ACTIVE_ENGINE
+    if ACTIVE_ENGINE and ACTIVE_ENGINE.is_running:
+        return Response(ACTIVE_ENGINE.generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    else:
+        # Fallback empty stream
+        def empty_feed():
+            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n\r\n')
+        return Response(empty_feed(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route("/api/faculty/stop_session", methods=["POST"])
+@faculty_required
+def api_stop_session():
+    data = request.json
+    pwd = data.get('passcode')
     
-    try:
-        db = get_db()
-        # Get live count directly from the attendance logs for this timetable
-        records = db.get_attendance_by_session(session_info['timetable_id'])
-        present = len(records) if records else 0
-        return jsonify({"present_count": present})
-    except Exception:
-        return jsonify({"present_count": 0})
+    # Verify password explicitly as user requested
+    db = get_db()
+    faculty = db.get_faculty_by_passcode(pwd)
+    
+    if not faculty or faculty[0] != session['faculty_id']:
+        return jsonify({"success": False, "message": "Invalid password. Cannot stop class."})
+        
+    global ACTIVE_ENGINE
+    if ACTIVE_ENGINE:
+        # stop_and_export will terminate the camera safely and generate CSV files securely ordered
+        success, msg = ACTIVE_ENGINE.stop_and_export()
+        ACTIVE_ENGINE = None
+        session.pop('active_session', None)
+        return jsonify({"success": success, "message": msg})
+        
+    session.pop('active_session', None)
+    return jsonify({"success": True, "message": "Session forcibly ended."})
 
 @app.route("/api/faculty/export_csv", methods=["POST"])
 @faculty_required
