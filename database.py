@@ -164,6 +164,15 @@ class Database:
         self.disconnect()
         return results
     
+    def get_faculty_by_passcode(self, passcode):
+        """Find a faculty by checking their passcode against all hashes"""
+        faculties = self.get_all_faculties()
+        for f in faculties:
+            # Hash is at index 4 in faculties table
+            if self.verify_passcode(passcode, f[4]):
+                return f
+        return None
+    
     # Student operations
     def add_student(self, student_id, name, email, department):
         """Add a new student"""

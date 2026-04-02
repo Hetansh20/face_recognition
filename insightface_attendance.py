@@ -35,7 +35,7 @@ def _l2_normalize(x):
     return x / (np.linalg.norm(x) + 1e-10)
 
 class InsightFaceAttendanceSystem:
-    def __init__(self, root, timetable_id=None, session_id=None, on_attendance_marked=None):
+    def __init__(self, root, timetable_id=None, session_id=None, on_attendance_marked=None, auto_start=False):
         self.root = root
         self.root.title("InsightFace Attendance System — Lightning Fast")
         self.root.geometry("1200x720")
@@ -47,6 +47,7 @@ class InsightFaceAttendanceSystem:
         self.timetable_id          = timetable_id
         self.session_id            = session_id
         self.on_attendance_marked  = on_attendance_marked  # callback(name)
+        self.auto_start            = auto_start
 
         # State
         self.camera           = None
@@ -60,6 +61,7 @@ class InsightFaceAttendanceSystem:
         self.vote_buffer      = []
         self.vote_window      = 7
         self.last_name_shown  = None
+        self.session_marked   = set()
 
         # Paths
         self.faces_dir        = "registered_faces"
@@ -102,6 +104,9 @@ class InsightFaceAttendanceSystem:
             if not self.embeddings and self.database:
                 self.root.after(0, lambda: messagebox.showinfo(
                     "Action Required", "Models loaded! Click 'Train Model' to extract embeddings for the first time."))
+            
+            if self.auto_start:
+                self.root.after(500, self.perform_autostart)
         
         except RuntimeError as e:
             if "not found" in str(e).lower():
@@ -406,6 +411,13 @@ class InsightFaceAttendanceSystem:
             self.faces_list.insert(tk.END, f"{info['name']}  ({info.get('employee_id','N/A')})")
 
     # ── Camera ───────────────────────────────────────────────────────────────
+
+    def perform_autostart(self):
+        if not self.is_running:
+            self.toggle_camera()
+        
+        # Add a tiny delay to ensure camera is fully acquired before recognition
+        self.root.after(400, self.recognize_mode)
 
     def toggle_camera(self):
         if not self.is_running:
@@ -718,15 +730,11 @@ class InsightFaceAttendanceSystem:
         today = datetime.now().strftime("%Y-%m-%d")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Check if already logged today in CSV
-        if os.path.exists(self.attendance_file):
-            try:
-                with open(self.attendance_file, 'r') as f:
-                    for line in f:
-                        if today in line and person_id in line:
-                            return True
-            except Exception:
-                pass
+        # Check if already logged for THIS SPECIFIC SESSION instance
+        if person_id in self.session_marked:
+            return True
+            
+        self.session_marked.add(person_id)
 
         # ── Write to CSV (always allowed if recognized) ─────────────────────
         try:
@@ -822,14 +830,91 @@ class InsightFaceAttendanceSystem:
     # ── Stop / Idle ───────────────────────────────────────────────────────
 
     def stop_mode(self):
-        self.mode = "idle"
-        self.last_name_shown = None
-        self.status_label.config(text="Status: Camera Active", fg='#8b949e')
-        self.conf_label.config(text="")
-        self.reg_btn.config(state=tk.NORMAL)
-        self.rec_btn.config(state=tk.NORMAL)
-        self.stop_btn.config(state=tk.DISABLED)
-        self.root.unbind('<space>')
+        # ── Password Protection
+        pwd = simpledialog.askstring("Authorize", "Enter Faculty Password to Stop Class:", show='*')
+        if not pwd:
+            return
+            
+        try:
+            from database import Database
+            db = Database()
+            faculty = db.get_faculty_by_passcode(pwd)
+            if not faculty:
+                messagebox.showerror("Error", "Invalid password. Cannot stop class.")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Database error: {e}")
+            return
+            
+        # ── Valid Password -> End Session & Export CSVs
+        if self.timetable_id is not None:
+            try:
+                export_dir = "attendance_reports"
+                os.makedirs(export_dir, exist_ok=True)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                
+                tt = db.get_timetable_by_id(self.timetable_id)
+                class_name = tt[2].replace(" ", "_") if tt else "Class"
+                
+                # Fetch Data
+                all_students = db.get_all_students() or []
+                attendance_records = db.get_attendance_by_session(self.timetable_id) or []
+                
+                present_ids = set()
+                for rec in attendance_records:
+                    present_ids.add(rec[1]) # student_id internal pk
+                
+                # End Session in Database securely
+                if hasattr(self, 'session_id') and self.session_id:
+                    try:
+                        db.end_session(self.session_id, len(present_ids))
+                    except Exception:
+                        pass
+                    
+                import csv
+                present_students = []
+                absent_students = []
+                
+                for s in all_students:
+                    # s is tuple: (id, student_id_code, name, email, dept, ...)
+                    record = {
+                        'ID': str(s[1]),
+                        'Name': s[2],
+                        'Email': s[3],
+                        'Department': s[4]
+                    }
+                    if s[0] in present_ids:
+                        present_students.append(record)
+                    else:
+                        absent_students.append(record)
+                        
+                # Sort exactly as requested (ascending by ID / enrollment number)
+                present_students.sort(key=lambda x: x['ID'])
+                absent_students.sort(key=lambda x: x['ID'])
+                
+                # Output Present
+                if present_students:
+                    present_file = os.path.join(export_dir, f"{class_name}_Present_{timestamp}.csv")
+                    with open(present_file, 'w', newline='', encoding='utf-8') as f:
+                        writer = csv.DictWriter(f, fieldnames=['ID', 'Name', 'Email', 'Department'])
+                        writer.writeheader()
+                        writer.writerows(present_students)
+                
+                # Output Absent
+                if absent_students:
+                    absent_file = os.path.join(export_dir, f"{class_name}_Absent_{timestamp}.csv")
+                    with open(absent_file, 'w', newline='', encoding='utf-8') as f:
+                        writer = csv.DictWriter(f, fieldnames=['ID', 'Name', 'Email', 'Department'])
+                        writer.writeheader()
+                        writer.writerows(absent_students)
+                        
+                messagebox.showinfo("Session Stopped", "Class has successfully ended.\n\n"
+                                    "Present and Absent CSV files have been automatically exported to 'attendance_reports'!")
+            except Exception as e:
+                print(f"[Export Error] {e}")
+
+        # Shut down entirely
+        self.cleanup()
 
     # ── Delete ────────────────────────────────────────────────────────────
 
@@ -1000,6 +1085,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timetable-id", type=int, default=None, help="The SQLite DB timetable ID to link attendance to.")
     parser.add_argument("--session-id", type=int, default=None, help="The SQLite DB session ID.")
+    parser.add_argument("--auto-start", action="store_true", help="Automatically load camera and recognition mode.")
     args = parser.parse_args()
 
     # Disable annoying warnings
@@ -1007,7 +1093,7 @@ def main():
 
     try:
         root = tk.Tk()
-        app  = InsightFaceAttendanceSystem(root, timetable_id=args.timetable_id, session_id=args.session_id)
+        app  = InsightFaceAttendanceSystem(root, timetable_id=args.timetable_id, session_id=args.session_id, auto_start=args.auto_start)
         root.protocol("WM_DELETE_WINDOW", app.cleanup)
         root.mainloop()
     except Exception as e:

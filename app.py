@@ -138,13 +138,39 @@ def faculty_login():
     if request.method == "POST":
         data = request.json
         from auth import auth_manager
-        token, msg = auth_manager.faculty_login(data.get('email'), data.get('passcode'))
+        token, msg = auth_manager.faculty_login(data.get('passcode'))
         if token:
             sess_data, _ = auth_manager.verify_session(token)
             session['faculty_token'] = token
             session['faculty_id'] = sess_data['faculty_id']
             session['faculty_name'] = sess_data['name']
             session['faculty_email'] = sess_data['email']
+            
+            # ── Auto-start Face Recognition if an active class exists
+            active_class, _ = timetable_manager.get_active_class(session['faculty_id'])
+            if active_class:
+                from attendance_marker import attendance_marker
+                session_id_tuple = attendance_marker.start_session(session['faculty_id'], active_class[0])
+                sid = session_id_tuple[0] if session_id_tuple else None
+                tid = active_class[0]
+                
+                # Update Flask session to track this class
+                session['active_session'] = {
+                    "timetable_id": tid,
+                    "session_id": sid,
+                    "class_name": active_class[2],
+                    "time": f"{active_class[4]} - {active_class[5]}"
+                }
+                
+                # Check if process exists to avoid duplicate launches
+                if sid not in ACTIVE_PROCESSES or ACTIVE_PROCESSES[sid].poll() is not None:
+                    try:
+                        cmd = ["python", "insightface_attendance.py", "--timetable-id", str(tid), "--session-id", str(sid), "--auto-start"]
+                        proc = subprocess.Popen(cmd)
+                        ACTIVE_PROCESSES[sid] = proc
+                    except Exception as e:
+                        print(f"[AutoStart Error] {e}")
+
             return jsonify({"success": True})
         return jsonify({"success": False, "message": msg})
     return render_template("faculty_login.html")

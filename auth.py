@@ -9,19 +9,15 @@ class AuthManager:
         self.db = Database()
         self.sessions = {}  # In-memory session storage
     
-    def faculty_login(self, email, passcode):
-        """Authenticate faculty with email and passcode"""
-        faculty = self.db.get_faculty_by_email(email)
+    def faculty_login(self, passcode):
+        """Authenticate faculty with passcode only"""
+        faculty = self.db.get_faculty_by_passcode(passcode)
         
         if not faculty:
-            return None, "Faculty not found"
+            return None, "Invalid passcode or Faculty not found"
         
         if not faculty[5]:  # Check if active
             return None, "Faculty account is inactive"
-        
-        # Verify passcode
-        if not self.db.verify_passcode(passcode, faculty[4]):
-            return None, "Invalid passcode"
         
         # Create session
         session_token = secrets.token_urlsafe(32)
