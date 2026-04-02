@@ -177,24 +177,36 @@ class FaceEngine:
         if self.timetable_id is not None:
             try:
                 from attendance_marker import attendance_marker
-                for info_id in self.database:
-                    if info_id == person_id:
-                        # Extract the numeric student_id (foreign key logic from app)
-                        emp_id = self.database[person_id].get('employee_id', "")
-                        from database import Database
-                        db = Database()
-                        stu = db.get_student_by_id(emp_id)
-                        if stu:
-                            attendance_marker.mark_student_present(stu[0], self.timetable_id)
-                        else:
-                            # Auto register logic port
-                            name = self.database[person_id].get('name', 'Unknown')
-                            dept = 'Unassigned'
-                            new_email = f"{person_id}@student.com"
-                            db.add_student(emp_id if emp_id else f"{int(time.time())}", name, new_email, dept)
-                            new_stu = db.get_student_by_id(emp_id if emp_id else f"{int(time.time())}")
-                            if new_stu:
-                                attendance_marker.mark_student_present(new_stu[0], self.timetable_id)
+                info = self.database.get(person_id)
+                if info:
+                    emp_id = info.get('employee_id', "").strip()
+                    from database import Database
+                    db = Database()
+                    
+                    stu = None
+                    if emp_id:
+                        stu = db.get_student_by_student_id(emp_id)
+                        
+                    if not stu:
+                        name_lower = info.get('name', '').lower()
+                        for s in db.get_all_students() or []:
+                            if s[2].lower() == name_lower:
+                                stu = s
+                                break
+                                
+                    if stu:
+                        attendance_marker.mark_student_present(stu[0], self.timetable_id)
+                    else:
+                        name = info.get('name', 'Unknown')
+                        if not emp_id:
+                            emp_id = 'AUTO_' + name.replace(' ', '_') + str(int(time.time()))
+                        dept = 'Unassigned'
+                        new_email = f"{emp_id}@auto.reg"
+                        db.add_student(emp_id, name, new_email, dept)
+                        new_stu = db.get_student_by_student_id(emp_id)
+                        if new_stu:
+                            attendance_marker.mark_student_present(new_stu[0], self.timetable_id)
+
             except Exception as e:
                 print(f"[FaceEngine DB Error] {e}")
 
