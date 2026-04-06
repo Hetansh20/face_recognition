@@ -1,11 +1,20 @@
-deepface
-opencv-python
-Pillow
-tensorflow
-numpy
-pandas
+# Core Web
+flask
+gunicorn
+
+# Face Recognition Engine
 insightface
 onnxruntime
-Flask
+opencv-python-headless
+
+# Database + Auth
 bcrypt
+
+# Data / ML
+numpy
+scipy
+Pillow
+
+# Utilities
+python-dotenv
 requests
