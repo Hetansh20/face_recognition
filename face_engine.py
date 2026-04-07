@@ -21,13 +21,19 @@ class FaceEngine:
         self.session_id = session_id
         self.session_marked = set()
         
+        # Recognition tuning for low-latency attendance
+        self.vote_window = 5
+        self.required_votes = 3
+        self.det_size = (416, 416)
+        self.infer_width = 640
+
         # Load InsightFace
         self.face_app = FaceAnalysis(name="buffalo_l")
         try:
-            self.face_app.prepare(ctx_id=0, det_thresh=0.5)
+            self.face_app.prepare(ctx_id=0, det_thresh=0.5, det_size=self.det_size)
             print("[FaceEngine] InsightFace loaded (GPU Base)")
         except:
-            self.face_app.prepare(ctx_id=-1, det_thresh=0.5)
+            self.face_app.prepare(ctx_id=-1, det_thresh=0.5, det_size=self.det_size)
             print("[FaceEngine] InsightFace loaded (CPU Base)")
             
         # Database setup
@@ -52,7 +58,6 @@ class FaceEngine:
             
         # Recognition buffers
         self.vote_buffer = []
-        self.vote_window = 7
         self.last_recognized = None
         self.status_message = "Ready"
 
@@ -78,7 +83,7 @@ class FaceEngine:
             if getattr(self, 'latest_frame', None) is not None:
                 frame_to_process = self.latest_frame.copy()
                 self._run_inference(frame_to_process)
-            time.sleep(0.1)
+            time.sleep(0.08)
 
     def generate_frames(self):
         """Generator that yields JPG frames for Flask MJPEG endpoint."""
@@ -103,13 +108,31 @@ class FaceEngine:
     def _run_inference(self, frame):
         """Runs InsightFace + Attendance logic asynchronously"""
         try:
-            faces = self.face_app.get(frame)
+            h, w = frame.shape[:2]
+            scale = 1.0
+            infer_frame = frame
+            if w > self.infer_width:
+                scale = self.infer_width / float(w)
+                infer_h = max(1, int(h * scale))
+                infer_frame = cv2.resize(frame, (self.infer_width, infer_h), interpolation=cv2.INTER_LINEAR)
+
+            faces = self.face_app.get(infer_frame)
             if not faces:
                 self.status_message = "No faces detected"
                 self.latest_faces = []
                 return
-                
-            self.latest_faces = faces
+
+            scaled_boxes = []
+            for f in faces:
+                box = f.bbox.astype(np.float32)
+                if scale != 1.0:
+                    box[0] /= scale
+                    box[2] /= scale
+                    box[1] /= scale
+                    box[3] /= scale
+                scaled_boxes.append(box.astype(int))
+            self.latest_faces = scaled_boxes
+
             # Focus simply on the largest face in frame for fast logic
             best_face = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
             live_vec = _l2_normalize(best_face.embedding.astype(np.float32))
@@ -153,7 +176,7 @@ class FaceEngine:
                 counts = {}
                 for v in valid_votes: counts[v] = counts.get(v, 0) + 1
                 best_cand = max(counts.items(), key=lambda x: x[1])
-                if best_cand[1] >= 4:
+                if best_cand[1] >= self.required_votes:
                     winner_pid = best_cand[0]
                     
             self.current_winner = winner_pid
@@ -182,7 +205,10 @@ class FaceEngine:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0) if "✅" in self.status_message else (200,200,200), 2)
                     
         for f in faces:
-            box = f.bbox.astype(int)
+            if hasattr(f, 'bbox'):
+                box = f.bbox.astype(int)
+            else:
+                box = np.array(f, dtype=int)
             color = (0, 255, 0) if current_winner else (255, 150, 0)
             cv2.rectangle(viz, (box[0], box[1]), (box[2], box[3]), color, 2)
             

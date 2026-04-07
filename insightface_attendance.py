@@ -57,9 +57,14 @@ class InsightFaceAttendanceSystem:
         self.processing       = False
         self.face_app         = None
 
+        # Latency-focused recognition settings
+        self.vote_window      = 5
+        self.required_votes   = 3
+        self.det_size         = (416, 416)
+        self.infer_width      = 640
+
         # Multi-frame voting buffer
         self.vote_buffer      = []
-        self.vote_window      = 7
         self.last_name_shown  = None
         self.session_marked   = set()
 
@@ -92,10 +97,10 @@ class InsightFaceAttendanceSystem:
             
             # Try GPU first (ctx_id=0), fallback to CPU (ctx_id=-1)
             try:
-                self.face_app.prepare(ctx_id=0, det_thresh=0.5)
+                self.face_app.prepare(ctx_id=0, det_thresh=0.5, det_size=self.det_size)
                 print("[Model] InsightFace loaded (GPU Mode / ctx_id=0)")
             except:
-                self.face_app.prepare(ctx_id=-1, det_thresh=0.5)
+                self.face_app.prepare(ctx_id=-1, det_thresh=0.5, det_size=self.det_size)
                 print("[Model] InsightFace loaded (CPU Mode / ctx_id=-1)")
                 
             self.root.after(0, lambda: self.status_label.config(
@@ -615,14 +620,22 @@ class InsightFaceAttendanceSystem:
                 self.processing = True
                 self._process_recognition_frame()
                 self.processing = False
-            time.sleep(0.3) # Faster checking than deepface (0.6s -> 0.3s)
+            time.sleep(0.15)
 
     def _process_recognition_frame(self):
         try:
             frame = self.current_frame.copy()
 
+            h, w = frame.shape[:2]
+            scale = 1.0
+            infer_frame = frame
+            if w > self.infer_width:
+                scale = self.infer_width / float(w)
+                infer_h = max(1, int(h * scale))
+                infer_frame = cv2.resize(frame, (self.infer_width, infer_h), interpolation=cv2.INTER_LINEAR)
+
             # Step 1: Extract InsightFace embedding from current frame
-            faces = self.face_app.get(frame)
+            faces = self.face_app.get(infer_frame)
             if not faces:
                 self.root.after(0, lambda: self.conf_label.config(text="No face detected"))
                 return
@@ -676,8 +689,8 @@ class InsightFaceAttendanceSystem:
             if len(self.vote_buffer) > self.vote_window:
                 self.vote_buffer.pop(0)
 
-            # Step 4: Decide — require 4 out of 7 frames to agree
-            VOTES_NEEDED = self.vote_window // 2 + 1
+            # Step 4: Decide quickly with a 3/5 voting rule
+            VOTES_NEEDED = self.required_votes
             valid_votes  = [(p, d) for p, d in self.vote_buffer if p is not None]
 
             vote_counts = {}
