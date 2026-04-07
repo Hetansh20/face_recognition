@@ -1,0 +1,30 @@
+# .dockerignore
+# Exclude these from the Docker build context for smaller, faster builds.
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+.env
+env/
+.venv/
+
+# Local development files
+*.log
+
+# Model cache – InsightFace will DOWNLOAD these fresh inside the container
+# Comment out the line below ONLY if you have pre-downloaded buffalo_l on your machine
+# and want to bake it into the image (much larger image size, but faster first cold start).
+.insightface/
+
+# Git
+.git/
+.gitignore

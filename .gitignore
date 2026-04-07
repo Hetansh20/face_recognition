@@ -1,2 +1,15 @@
 venv/
 __pycache__/
+*.pyc
+*.pyo
+
+# Secrets — NEVER commit these
+.env
+*.env
+
+
+
+# IDE
+.vscode/
+.idea/
+*.DS_Store
