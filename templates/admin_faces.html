@@ -1,0 +1,229 @@
+{% extends "admin_base.html" %}
+{% block title %}Face Registration{% endblock %}
+
+{% block content %}
+<style>
+    .reg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1.5rem; }
+    #camWrap { position: relative; background: #000; border-radius: 8px; overflow:hidden; aspect-ratio: 4/3; }
+    #camera  { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .overlay-hint { 
+        position: absolute; bottom:0; left:0; right:0; 
+        background: rgba(0,0,0,.7); color:#fff; padding: 0.6rem 1rem; 
+        font-size: 0.9rem; text-align: center; 
+    }
+    .capture-steps { display: flex; gap: 1rem; margin: 1rem 0; }
+    .step-thumb { 
+        flex:1; aspect-ratio:4/3; border-radius:6px; 
+        background:#161b22; border:2px dashed var(--border-color);
+        display:flex; align-items:center; justify-content:center;
+        color:var(--text-muted); font-size:0.75rem; text-align:center;
+        overflow:hidden;
+    }
+    .step-thumb.done { border-color: #2ea043; }
+    .step-thumb img { width:100%; height:100%; object-fit:cover; }
+    .faces-table th, .faces-table td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+    .faces-table th { color: var(--text-muted); font-size:0.8rem; text-transform:uppercase; letter-spacing:.05em; }
+    .badge-trained { background:#1a4731; color:#2ea043; padding:2px 8px; border-radius:20px; font-size:0.78rem; }
+    .badge-pending { background:#3d2a00; color:#e3b341; padding:2px 8px; border-radius:20px; font-size:0.78rem; }
+    #trainBar { display:none; height:4px; margin-top:1rem; background:#2ea043; border-radius:4px; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem;">
+    <h2>🎭 Face Registration</h2>
+    <button class="btn btn-primary" id="trainBtn" onclick="trainModel()">
+        🧠 Train AI Model
+    </button>
+</div>
+<p style="color:var(--text-muted); margin-top:0.3rem;">Register student faces via webcam (3 angles), then train the model to apply changes.</p>
+<div id="trainBar"></div>
+<div id="trainMsg" style="margin-top:0.5rem; font-size:0.9rem;"></div>
+
+<div class="reg-grid">
+    <!-- LEFT: Camera Panel -->
+    <div class="card">
+        <h3 style="margin-bottom:1rem;">Capture New Face</h3>
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="faceName" placeholder="e.g. Ansh Raythatha">
+        </div>
+        <div class="form-group">
+            <label>Student / Roll ID</label>
+            <input type="text" id="faceId" placeholder="e.g. 22CS001">
+        </div>
+
+        <div id="camWrap">
+            <video id="camera" autoplay muted playsinline></video>
+            <canvas id="snap" style="display:none;"></canvas>
+            <div class="overlay-hint" id="hint">Click "Start Camera" to begin</div>
+        </div>
+
+        <div class="capture-steps">
+            <div class="step-thumb" id="s1"><span>1<br>Front</span></div>
+            <div class="step-thumb" id="s2"><span>2<br>Turn Left</span></div>
+            <div class="step-thumb" id="s3"><span>3<br>Turn Right</span></div>
+        </div>
+
+        <div style="display:flex; gap:1rem; margin-top:0.5rem;">
+            <button class="btn btn-outline" id="camBtn" onclick="toggleCamera()">▶ Start Camera</button>
+            <button class="btn btn-primary" id="captureBtn" disabled onclick="captureFrame()">📸 Capture Frame</button>
+        </div>
+        <button class="btn btn-primary" id="registerBtn" style="width:100%;margin-top:1rem;display:none;" onclick="registerFace()">
+            ✅ Register Face
+        </button>
+        <div id="regMsg" style="margin-top:0.5rem; font-size:0.9rem;"></div>
+    </div>
+
+    <!-- RIGHT: Registered people list -->
+    <div class="card">
+        <h3 style="margin-bottom:1rem;">Registered Faces <span id="faceCount" style="color:var(--text-muted);font-size:0.85rem;"></span></h3>
+        <div id="facesList" style="max-height:520px; overflow-y:auto;">
+            <p style="color:var(--text-muted);">Loading...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let stream = null;
+let captures = [];
+let captureStep = 0;
+const stepHints = ["LOOK STRAIGHT ahead", "SLOWLY TURN LEFT", "SLOWLY TURN RIGHT"];
+
+async function toggleCamera() {
+    if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        document.getElementById('camera').srcObject = null;
+        document.getElementById('camBtn').textContent = '▶ Start Camera';
+        document.getElementById('captureBtn').disabled = true;
+        document.getElementById('hint').textContent = 'Click "Start Camera" to begin';
+        return;
+    }
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width:1280, height:720 } });
+        document.getElementById('camera').srcObject = stream;
+        document.getElementById('camBtn').textContent = '⏹ Stop Camera';
+        document.getElementById('captureBtn').disabled = false;
+        captures = []; captureStep = 0;
+        ['s1','s2','s3'].forEach(id => { document.getElementById(id).className='step-thumb'; document.getElementById(id).innerHTML = `<span>${id.slice(1)}<br>${['Front','Turn Left','Turn Right'][id.slice(1)-1]}</span>`; });
+        document.getElementById('hint').textContent = '📸 Step 1 — ' + stepHints[0];
+    } catch(e) {
+        alert('Camera access denied: ' + e.message);
+    }
+}
+
+function captureFrame() {
+    if (!stream || captureStep >= 3) return;
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('snap');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    captures.push(dataUrl);
+
+    const thumbId = 's' + (captureStep + 1);
+    const thumb = document.getElementById(thumbId);
+    thumb.innerHTML = `<img src="${dataUrl}">`;
+    thumb.classList.add('done');
+    captureStep++;
+
+    if (captureStep < 3) {
+        document.getElementById('hint').textContent = '📸 Step ' + (captureStep+1) + ' — ' + stepHints[captureStep];
+    } else {
+        document.getElementById('hint').textContent = '✅ All 3 angles captured! Click Register.';
+        document.getElementById('captureBtn').disabled = true;
+        document.getElementById('registerBtn').style.display = 'block';
+    }
+}
+
+async function registerFace() {
+    const name = document.getElementById('faceName').value.trim();
+    const eid = document.getElementById('faceId').value.trim();
+    if (!name) { alert('Please enter a name'); return; }
+    if (captures.length < 3) { alert('Capture 3 angles first'); return; }
+
+    const btn = document.getElementById('registerBtn');
+    btn.disabled = true; btn.textContent = 'Registering...';
+
+    const res = await fetch('/api/admin/save_face', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ name, employee_id: eid, frames: captures })
+    });
+    const data = await res.json();
+    const msg = document.getElementById('regMsg');
+    msg.style.color = data.success ? '#2ea043' : '#da3633';
+    msg.textContent = data.message;
+    btn.disabled = false; btn.textContent = '✅ Register Face';
+    
+    if (data.success) {
+        captures = []; captureStep = 0;
+        document.getElementById('registerBtn').style.display = 'none';
+        document.getElementById('faceName').value = '';
+        document.getElementById('faceId').value = '';
+        loadFaces();
+    }
+}
+
+async function loadFaces() {
+    const res = await fetch('/api/admin/list_faces');
+    const data = await res.json();
+    const el = document.getElementById('facesList');
+    if (!data.success || !data.people.length) {
+        el.innerHTML = '<p style="color:var(--text-muted)">No faces registered yet.</p>';
+        document.getElementById('faceCount').textContent = '(0)';
+        return;
+    }
+    document.getElementById('faceCount').textContent = `(${data.people.length})`;
+    el.innerHTML = `
+    <table style="width:100%; border-collapse:collapse;" class="faces-table">
+        <thead><tr>
+            <th>Name</th><th>ID</th><th>Images</th><th>Registered</th><th></th>
+        </tr></thead>
+        <tbody>
+        ${data.people.map(p => `
+            <tr>
+                <td>${p.name}</td>
+                <td style="color:var(--text-muted)">${p.employee_id || '—'}</td>
+                <td><span class="${p.image_count >= 3 ? 'badge-trained' : 'badge-pending'}">${p.image_count} photos</span></td>
+                <td style="color:var(--text-muted); font-size:0.8rem;">${p.registered.substring(0,10) || '—'}</td>
+                <td><button class="btn btn-outline" style="padding:3px 10px;font-size:0.78rem;color:#da3633;border-color:#da3633;" onclick="deleteFace('${p.person_id}', '${p.name}')">Delete</button></td>
+            </tr>
+        `).join('')}
+        </tbody>
+    </table>`;
+}
+
+async function deleteFace(pid, name) {
+    if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
+    const res = await fetch('/api/admin/delete_face', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ person_id: pid })
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (data.success) loadFaces();
+}
+
+async function trainModel() {
+    const btn = document.getElementById('trainBtn');
+    const bar = document.getElementById('trainBar');
+    const msg = document.getElementById('trainMsg');
+    btn.disabled = true; btn.textContent = '⏳ Training... please wait';
+    bar.style.display = 'block';
+    msg.textContent = 'Loading InsightFace models and processing images...';
+    msg.style.color = 'var(--text-muted)';
+    
+    const res = await fetch('/api/admin/train_model', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const data = await res.json();
+    
+    bar.style.display = 'none';
+    msg.style.color = data.success ? '#2ea043' : '#da3633';
+    msg.textContent = data.message;
+    btn.disabled = false; btn.textContent = '🧠 Train AI Model';
+}
+
+// Load on page load
+loadFaces();
+</script>
+{% endblock %}

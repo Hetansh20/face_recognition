@@ -593,10 +593,10 @@
         "name": "Ansh Raythatha",
         "employee_id": "92301733042",
         "image_paths": [
-            "registered_faces\\Ansh_Raythatha_92301733042_front.jpg",
-            "registered_faces\\Ansh_Raythatha_92301733042_left.jpg",
-            "registered_faces\\Ansh_Raythatha_92301733042_right.jpg"
+            "D:\\ML\\deepface\\face_recognition\\registered_faces\\Ansh_Raythatha_92301733042_front.jpg",
+            "D:\\ML\\deepface\\face_recognition\\registered_faces\\Ansh_Raythatha_92301733042_left.jpg",
+            "D:\\ML\\deepface\\face_recognition\\registered_faces\\Ansh_Raythatha_92301733042_right.jpg"
         ],
-        "registered": "2026-03-30 12:03:38"
+        "registered": "2026-04-10 16:29:49"
     }
 }
