@@ -7,6 +7,9 @@ insightface
 onnxruntime
 opencv-python-headless
 
+# YOLO (group photo multi-face detection)
+ultralytics
+
 # Database + Auth
 bcrypt
 

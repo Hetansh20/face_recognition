@@ -263,6 +263,77 @@ def api_stop_session():
     session.pop('active_session', None)
     return jsonify({"success": True, "message": "Session forcibly ended."})
 
+@app.route("/api/faculty/group_photo_attend", methods=["POST"])
+@faculty_required
+def api_group_photo_attend():
+    import base64
+    session_info = session.get("active_session")
+    if not session_info:
+        return jsonify({"success": False, "message": "No active class session."})
+
+    data = request.json
+    img_b64 = data.get("image", "")
+    if not img_b64:
+        return jsonify({"success": False, "message": "No image provided."})
+
+    try:
+        img_bytes = base64.b64decode(img_b64.split(",")[-1])
+    except Exception:
+        return jsonify({"success": False, "message": "Invalid image data."})
+
+    try:
+        from group_recognizer import process_group_photo
+        result = process_group_photo(img_bytes)
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Recognition error: {e}"})
+
+    if "error" in result:
+        return jsonify({"success": False, "message": result["error"]})
+
+    timetable_id = session_info["timetable_id"]
+    marked = []
+    skipped = []
+    db = get_db()
+    from attendance_marker import attendance_marker
+
+    for person in result.get("recognized", []):
+        emp_id = (person.get("employee_id") or "").strip()
+        name   = person.get("name", "Unknown")
+        try:
+            # Look up by roll number (student_id field), not integer PK
+            stu = db.get_student_by_student_id(emp_id) if emp_id else None
+
+            if not stu:
+                # Auto-register the face-db person into the student table
+                print(f"[Group] Auto-registering {name} ({emp_id}) into students table")
+                dept  = "Unassigned"
+                email = f"{(emp_id or name).replace(' ','_').lower()}@student.local"
+                try:
+                    db.add_student(emp_id or name, name, email, dept)
+                    stu = db.get_student_by_student_id(emp_id) if emp_id else None
+                except Exception as reg_err:
+                    print(f"[Group] Auto-register failed: {reg_err}")
+
+            if stu:
+                # stu[0] is the integer row-id primary key
+                attendance_marker.mark_student_present(stu[0], timetable_id)
+                marked.append(name)
+            else:
+                skipped.append(f"{name} (registration failed)")
+        except Exception as e:
+            skipped.append(f"{name} (error: {e})")
+
+    return jsonify({
+        "success":            True,
+        "total_faces":        result.get("total_faces", 0),
+        "recognized_count":   len(result.get("recognized", [])),
+        "unrecognized_count": result.get("unrecognized_count", 0),
+        "marked":             marked,
+        "skipped":            skipped,
+        "annotated_image":    result.get("annotated_image", ""),
+        "yolo_used":          result.get("yolo_used", False),
+    })
+
 @app.route("/api/faculty/export_csv", methods=["POST"])
 @faculty_required
 def api_faculty_export_csv():
