@@ -24,8 +24,9 @@ BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 FACE_DB   = os.path.join(BASE_DIR, "face_database.json")
 EMB_CACHE = os.path.join(BASE_DIR, "face_embeddings_insightface.pkl")
 
-# More lenient than streaming mode (0.45) — single photo has no voting buffer
+# Threshold for a valid match (0.55 gives good recall in single-photo mode)
 COSINE_THRESHOLD = 0.55
+
 
 
 def _l2_normalize(x: np.ndarray) -> np.ndarray:
@@ -47,10 +48,7 @@ def _load_face_db() -> dict:
 
 
 def _best_match(live_vec: np.ndarray, embeddings: dict):
-    """
-    Return (person_id, distance) for best cosine match.
-    No margin requirement — single-photo recognition needs max sensitivity.
-    """
+    """Return (person_id, distance) for best cosine match."""
     if not embeddings:
         return None, 1.0
 
@@ -76,6 +74,7 @@ def _best_match(live_vec: np.ndarray, embeddings: dict):
     if best_d < COSINE_THRESHOLD:
         return best_pid, best_d
     return None, best_d
+
 
 
 def process_group_photo(image_bytes: bytes) -> dict:

@@ -334,6 +334,147 @@ def api_group_photo_attend():
         "yolo_used":          result.get("yolo_used", False),
     })
 
+@app.route("/api/faculty/multi_photo_attend", methods=["POST"])
+@faculty_required
+def api_multi_photo_attend():
+    """
+    Accepts up to 3 base64 images. Runs face recognition on each,
+    merges results (union), builds present/absent against full student roster.
+    Does NOT mark attendance yet — returns data for the review page.
+    """
+    import base64
+    session_info = session.get("active_session")
+    if not session_info:
+        return jsonify({"success": False, "message": "No active class session."})
+
+    data   = request.json
+    images = data.get("images", [])   # list of base64 strings
+    if not images:
+        return jsonify({"success": False, "message": "No images provided."})
+
+    try:
+        from group_recognizer import process_group_photo
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Recognizer load error: {e}"})
+
+    # Process each photo and merge recognized faces (by person_id)
+    merged = {}          # person_id -> best recognition record
+    annotated_images = []
+    total_face_counts = []
+
+    for img_b64 in images[:3]:
+        try:
+            img_bytes = base64.b64decode(img_b64.split(",")[-1])
+            result    = process_group_photo(img_bytes)
+        except Exception as e:
+            print(f"[MultiPhoto] Error processing image: {e}")
+            continue
+
+        if "error" in result:
+            continue
+
+        annotated_images.append(result.get("annotated_image", ""))
+        total_face_counts.append(result.get("total_faces", 0))
+
+        for person in result.get("recognized", []):
+            pid = person["person_id"]
+            # Keep the record with highest confidence across photos
+            if pid not in merged or person["confidence"] > merged[pid]["confidence"]:
+                merged[pid] = person
+
+    if not annotated_images:
+        return jsonify({"success": False, "message": "Could not process any of the uploaded images."})
+
+    # Build present list from merged recognitions
+    present_list = list(merged.values())
+    present_ids  = {p["person_id"] for p in present_list}
+
+    # Build absent list: all students in face DB not recognized in any photo
+    import json
+    face_db = {}
+    if os.path.exists(FACE_DB):
+        with open(FACE_DB) as f:
+            face_db = json.load(f)
+
+    absent_list = [
+        {
+            "person_id":   pid,
+            "name":        info.get("name", pid),
+            "employee_id": info.get("employee_id", ""),
+        }
+        for pid, info in face_db.items()
+        if pid not in present_ids
+    ]
+
+    return jsonify({
+        "success":          True,
+        "present":          present_list,
+        "absent":           absent_list,
+        "annotated_images": annotated_images,
+        "total_faces":      sum(total_face_counts),
+        "photos_processed": len(annotated_images),
+    })
+
+
+@app.route("/api/faculty/confirm_attendance", methods=["POST"])
+@faculty_required
+def api_confirm_attendance():
+    """
+    Receives the faculty-reviewed final present list.
+    Marks all confirmed students present, exports CSVs.
+    """
+    session_info = session.get("active_session")
+    if not session_info:
+        return jsonify({"success": False, "message": "No active class session."})
+
+    data         = request.json
+    present_list = data.get("present", [])   # list of {person_id, name, employee_id, confidence}
+    timetable_id = session_info["timetable_id"]
+
+    db = get_db()
+    from attendance_marker import attendance_marker
+    marked  = []
+    skipped = []
+
+    for person in present_list:
+        emp_id = (person.get("employee_id") or "").strip()
+        name   = person.get("name", "Unknown")
+        confidence = person.get("confidence", 0)
+        try:
+            stu = db.get_student_by_student_id(emp_id) if emp_id else None
+            if not stu:
+                # Auto-register into student table
+                email = f"{(emp_id or name).replace(' ','_').lower()}@student.local"
+                try:
+                    db.add_student(emp_id or name, name, email, "Unassigned")
+                    stu = db.get_student_by_student_id(emp_id) if emp_id else None
+                except Exception:
+                    pass
+            if stu:
+                attendance_marker.mark_student_present(stu[0], timetable_id)
+                marked.append(name)
+            else:
+                skipped.append(f"{name} (could not register)")
+        except Exception as e:
+            skipped.append(f"{name} (error: {e})")
+
+    # Export CSVs
+    csv_msg = ""
+    try:
+        _, csv_msg = CSVExportService().export_faculty_attendance(
+            session['faculty_id'], session['faculty_name']
+        )
+    except Exception as e:
+        csv_msg = f"CSV export failed: {e}"
+
+    return jsonify({
+        "success":     True,
+        "marked":      marked,
+        "skipped":     skipped,
+        "marked_count": len(marked),
+        "csv_message": csv_msg,
+    })
+
 @app.route("/api/faculty/export_csv", methods=["POST"])
 @faculty_required
 def api_faculty_export_csv():
