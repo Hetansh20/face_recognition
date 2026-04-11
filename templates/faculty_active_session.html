@@ -128,6 +128,7 @@
     <!-- ── Stop Session Modal ─────────────────────────────────── -->
     <div class="modal-overlay" id="stopModal">
         <div class="modal">
+            <button type="button" class="close-btn" onclick="closeStopModal()">&times;</button>
             <h3 style="margin-bottom: 0.5rem; color: #da3633;">Stop AI Recognition?</h3>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
                 This will shut down the camera and export Present/Absent CSVs. Enter your password to confirm.
@@ -135,7 +136,10 @@
             <div class="form-group">
                 <input type="password" id="faculty_pwd" placeholder="Enter password..." autofocus>
             </div>
-            <div id="stopError" class="alert alert-error" style="display: none; padding: 0.5rem; margin-bottom: 1rem;"></div>
+            <div id="stopError" class="alert alert-error" style="display: none; padding: 0.5rem; margin-bottom: 1rem;">
+                <span class="alert-msg"></span>
+                <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'" style="top: 0.5rem;">&times;</button>
+            </div>
             <div class="modal-buttons">
                 <button class="btn btn-outline" style="flex:1;" onclick="closeStopModal()">Cancel</button>
                 <button class="btn btn-primary" style="flex:1; background:#da3633;" id="confirmBtn" onclick="confirmStop()">Confirm Stop</button>
@@ -146,6 +150,7 @@
     <!-- ── Group Photo Modal ──────────────────────────────────── -->
     <div class="modal-overlay" id="groupModal">
         <div class="modal modal-wide">
+            <button type="button" class="close-btn" onclick="closeGroupModal()">&times;</button>
             <h3 style="margin-bottom: 0.4rem;">📸 Group Photo Attendance</h3>
             <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:0.75rem;">
                 Capture or upload a class photo. AI will identify all students and mark attendance instantly.
@@ -229,11 +234,11 @@
                     alert(data.message + "\n\nCSVs exported to attendance_reports.");
                     window.location.href = '{{ url_for("faculty_active_session") }}';
                 } else {
-                    err.style.display = 'block'; err.textContent = data.message;
+                    err.style.display = 'block'; err.querySelector('.alert-msg').textContent = data.message;
                     btn.disabled = false; btn.textContent = "Confirm Stop";
                 }
             } catch (e) {
-                err.style.display = 'block'; err.textContent = "Server connection lost.";
+                err.style.display = 'block'; err.querySelector('.alert-msg').textContent = "Server connection lost.";
                 btn.disabled = false; btn.textContent = "Confirm Stop";
             }
         }
