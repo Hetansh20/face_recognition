@@ -64,20 +64,38 @@
     </thead>
     <tbody id="studentBody">
         {% for stu in students %}
-        <tr id="row-{{ stu[0] }}" data-class-id="{{ stu[5] or '' }}">
+        <tr id="row-{{ stu.id }}" data-class-id="{{ stu.class_id or '' }}">
             <td style="color:var(--text-muted); font-size:0.85rem;">{{ loop.index }}</td>
-            <td style="font-weight:600;">{{ stu[2] }}</td>
-            <td>{% if stu[5] %}<span class="badge badge-blue">{{ class_map.get(stu[5], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
-            <td>{% if stu[6] %}<span class="badge badge-green">{{ batch_map.get(stu[6], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
-            <td><code>{{ stu[1] }}</code></td>
-            <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu[3] }}</td>
-            <td>{% if stu[11] %}<span class="badge badge-green">✓</span>{% else %}<span class="badge badge-gray">✗</span>{% endif %}</td>
+            <td style="font-weight:600;">{{ stu.name }}</td>
+            <td>
+                {% if stu.class_id %}
+                    <span class="badge badge-blue">{{ class_map.get(stu.class_id, '?') }}</span>
+                {% else %}
+                    <span class="badge badge-gray">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if stu.batch_id %}
+                    <span class="badge badge-green">{{ batch_map.get(stu.batch_id, '?') }}</span>
+                {% else %}
+                    <span class="badge badge-gray">—</span>
+                {% endif %}
+            </td>
+            <td><code>{{ stu.student_id }}</code></td>
+            <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu.email }}</td>
+            <td>
+                {% if stu.face_pid %}
+                    <span class="badge badge-green">✓</span>
+                {% else %}
+                    <span class="badge badge-gray">✗</span>
+                {% endif %}
+            </td>
             <td>
                 <div style="display:flex; gap:0.4rem; align-items:center;">
                     <button class="btn btn-outline" style="font-size:0.75rem; padding:3px 10px;"
-                        data-id="{{ stu[0] }}" onclick="openEdit(this)">Edit</button>
+                        data-id="{{ stu.id }}" onclick="openEdit(this)">Edit</button>
                     <button style="background:var(--accent-red); color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:0.75rem; cursor:pointer;"
-                        onclick="deleteStudent('{{ stu[0] }}')">Del</button>
+                        onclick="deleteStudent('{{ stu.id }}')">Del</button>
                 </div>
             </td>
         </tr>
@@ -97,8 +115,8 @@
         {% for stu in no_face %}
         <div class="face-row">
             <div>
-                <div class="name">{{ stu[2] }}</div>
-                <div class="emp">ID: {{ stu[1] }} · {{ class_map.get(stu[5], 'No class assigned') }}</div>
+                <div class="name">{{ stu.name }}</div>
+                <div class="emp">ID: {{ stu.student_id }} · {{ class_map.get(stu.class_id, 'No class assigned') }}</div>
             </div>
             <span class="badge badge-gray">No face</span>
         </div>
@@ -154,7 +172,7 @@
                 <select id="iSem" onchange="loadClassesInModal(this.value)">
                     <option value="">Select</option>
                     {% for s in semesters %}
-                    <option value="{{ s[0] }}">{{ s[5] or s[3] or 'Degree' }} - Sem {{ s[1] }}</option>
+                    <option value="{{ s.id }}">{{ s.level or 'Degree' }} - Sem {{ s.number }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -196,7 +214,7 @@
             <select id="linkStudentSel">
                 <option value="">— choose —</option>
                 {% for stu in students %}
-                <option value="{{ stu[0] }}">{{ stu[2] }} ({{ stu[1] }})</option>
+                <option value="{{ stu.id }}">{{ stu.name }} ({{ stu.student_id }})</option>
                 {% endfor %}
             </select>
         </div>
@@ -253,20 +271,20 @@ function openAddModal() {
 async function openEdit(btn) {
     const id = btn.dataset.id;
     // Find student in our pre-loaded list
-    const stu = allStudents.find(s => s[0] == id);
+    const stu = allStudents.find(s => s.id == id);
     if (!stu) return;
 
     // Find semester_id (sem_id) from class_id via classesData
-    const classId = stu[5];
+    const classId = stu.class_id;
     const classInfo = classesData.find(c => c.id == classId);
     const semId = classInfo ? classInfo.sem_id : '';
 
     document.getElementById('stuId').value = id;
     document.getElementById('stuModalTitle').textContent = 'Edit Student';
-    document.getElementById('iStudentId').value = stu[1];
-    document.getElementById('iName').value       = stu[2];
-    document.getElementById('iEmail').value      = stu[3];
-    document.getElementById('iDept').value       = stu[4];
+    document.getElementById('iStudentId').value = stu.student_id;
+    document.getElementById('iName').value       = stu.name;
+    document.getElementById('iEmail').value      = stu.email;
+    document.getElementById('iDept').value       = stu.department;
     
     // Set Semester and trigger cascading loads
     document.getElementById('iSem').value = semId;
@@ -275,15 +293,15 @@ async function openEdit(btn) {
         document.getElementById('iClass').value = classId || '';
         if (classId) {
             await loadBatchesInModal(classId);
-            document.getElementById('iBatch').value = stu[6] || '';
+            document.getElementById('iBatch').value = stu.batch_id || '';
         }
     } else {
         document.getElementById('iClass').innerHTML = '<option value="">Select</option>';
         document.getElementById('iBatch').innerHTML = '<option value="">Select</option>';
     }
 
-    document.getElementById('iRoll').value       = stu[7] || '';
-    document.getElementById('iPhone').value      = stu[8] || '';
+    document.getElementById('iRoll').value       = stu.roll_number || '';
+    document.getElementById('iPhone').value      = stu.phone || '';
     document.getElementById('stuModalMsg').textContent = '';
     document.getElementById('stuModal').style.display = 'flex';
 }

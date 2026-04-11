@@ -250,15 +250,15 @@ def admin_students():
     semesters = db.get_all_semesters()
     all_batches = db.get_all_batches()
     no_face   = db.get_students_without_face()
-    class_map = {c[0]: c[2] for c in classes}   # id -> name
-    batch_map = {b[0]: b[2] for b in all_batches}  # id -> name
+    class_map = {c['id']: f"{c['name']} (Sem {c['number']})" for c in classes}   # id -> name
+    batch_map = {b['id']: b['name'] for b in all_batches}  # id -> name
 
     # Faces in face_database.json not linked to any student
     face_db = {}
     if os.path.exists(FACE_DB):
         with open(FACE_DB) as f:
             face_db = _json.load(f)
-    linked_pids = {s[11] for s in students if len(s) > 11 and s[11]}  # face_pid column index
+    linked_pids = {s['face_pid'] for s in students if s['face_pid']}
     unlinked_faces = {pid: info for pid, info in face_db.items() if pid not in linked_pids}
 
     return render_template(
@@ -271,9 +271,9 @@ def admin_students():
         class_map=class_map,
         batch_map=batch_map,
         unlinked_faces=unlinked_faces,
-        students_json=_json.dumps([list(s) for s in students]),
-        classes_json=_json.dumps([{"id": c[0], "sem_id": c[1], "name": c[2]} for c in classes]),
-        batches_json=_json.dumps([{"id": b[0], "name": b[2], "class_id": b[1]} for b in all_batches]),
+        students_json=_json.dumps([dict(s) for s in students]),
+        classes_json=_json.dumps([{"id": c['id'], "sem_id": c['semester_id'], "name": c['name']} for c in classes]),
+        batches_json=_json.dumps([{"id": b['id'], "name": b['name'], "class_id": b['class_id']} for b in all_batches]),
     )
 
 @app.route("/api/admin/student/add", methods=["POST"])
