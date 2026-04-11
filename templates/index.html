@@ -13,49 +13,82 @@
             align-items: center;
             justify-content: center;
             text-align: center;
+            padding: 3rem 1.5rem;
+            animation: fadeIn 0.8s ease-out;
         }
-        .landing-title { font-size: 3rem; margin-bottom: 0.5rem; color: var(--accent-blue); }
-        .landing-subtitle { font-size: 1.2rem; margin-bottom: 3rem; color: var(--text-muted); }
+        .landing-title { 
+            font-size: 4.5rem; 
+            margin-bottom: 1rem; 
+            background: linear-gradient(135deg, var(--text-primary), #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.04em;
+        }
+        .landing-title span {
+            background: linear-gradient(135deg, var(--accent-blue), #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .landing-subtitle { 
+            font-size: 1.35rem; 
+            margin-bottom: 4rem; 
+            color: var(--text-muted); 
+            max-width: 600px;
+        }
         .roles-grid {
             display: flex;
-            gap: 2rem;
-            max-width: 800px;
+            gap: 2.5rem;
+            max-width: 850px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
-        .role-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
-            padding: 3rem 2rem;
-            width: 300px;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
+        .role-card-anchor {
+            width: 100%;
+            max-width: 320px;
             text-decoration: none;
             color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 3.5rem 2rem;
+            cursor: pointer;
         }
-        .role-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-md);
-            border-color: var(--accent-blue);
+        .role-card-anchor:hover .role-icon {
+            transform: scale(1.1) translateY(-10px);
+            filter: drop-shadow(0 0 20px rgba(255,255,255,0.2));
         }
-        .role-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .role-icon { 
+            font-size: 4.5rem; 
+            margin-bottom: 1.5rem; 
+            transition: var(--transition-smooth);
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+        }
+        @media (max-width: 768px) {
+            .landing-title { font-size: 3rem; }
+            .landing-container { padding: 1.5rem; }
+            .role-card-anchor { padding: 2.5rem 1.5rem; }
+        }
     </style>
 </head>
 <body>
     <div class="landing-container">
-        <h1 class="landing-title">InsightFace Attendance</h1>
-        <p class="landing-subtitle">High-accuracy, enterprise-ready contactless attendance.</p>
+        <h1 class="landing-title">InsightFace <span>Attendance</span></h1>
+        <p class="landing-subtitle">High-accuracy, enterprise-ready contactless attendance powered by Deep Learning.</p>
         
         <div class="roles-grid">
-            <a href="{{ url_for('faculty_login') }}" class="role-card">
+            <a href="{{ url_for('faculty_login') }}" class="card role-card-anchor">
                 <div class="role-icon">👨‍🏫</div>
-                <h2>Faculty Portal</h2>
-                <p>Start sessions and run real-time face recognition.</p>
+                <h2 style="margin-bottom:0.5rem;">Faculty Portal</h2>
+                <p style="margin:0;">Start sessions and run real-time face recognition.</p>
             </a>
             
-            <a href="{{ url_for('admin_login') }}" class="role-card">
+            <a href="{{ url_for('admin_login') }}" class="card role-card-anchor">
                 <div class="role-icon">⚙️</div>
-                <h2>Admin Dashboard</h2>
-                <p>Manage users, timetables, and system analytics.</p>
+                <h2 style="margin-bottom:0.5rem;">Admin Dashboard</h2>
+                <p style="margin:0;">Manage users, timetables, and system analytics.</p>
             </a>
         </div>
     </div>

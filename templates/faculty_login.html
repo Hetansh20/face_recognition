@@ -11,7 +11,10 @@
         <h2 style="text-align: center; color: var(--accent-blue);">Faculty Portal</h2>
         <p style="text-align: center; margin-bottom: 2rem;">Sign in to start your class session</p>
         
-        <div id="error-alert" class="alert alert-error" style="display: none;"></div>
+        <div id="error-alert" class="alert alert-error" style="display: none;">
+            <span class="alert-msg"></span>
+            <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+        </div>
         
         <form id="loginForm">
             <div class="form-group">
@@ -49,7 +52,7 @@
                 } else {
                     const err = document.getElementById('error-alert');
                     err.style.display = 'block';
-                    err.textContent = data.message;
+                    err.querySelector('.alert-msg').textContent = data.message;
                     btn.textContent = 'Login';
                     btn.disabled = false;
                 }

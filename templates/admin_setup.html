@@ -9,7 +9,10 @@
     <!-- Add Faculty -->
     <div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
         <h3 style="color: var(--accent-green);">👨‍🏫 Add Faculty</h3>
-        <div id="fac-alert" class="alert" style="display: none;"></div>
+        <div id="fac-alert" class="alert" style="display: none;">
+            <span class="alert-msg"></span>
+            <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+        </div>
         <form id="facForm">
             <div class="form-group">
                 <label>Full Name</label>
@@ -34,7 +37,10 @@
     <!-- Add Student -->
     <div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
         <h3 style="color: var(--accent-blue);">🎓 Add Student</h3>
-        <div id="stu-alert" class="alert" style="display: none;"></div>
+        <div id="stu-alert" class="alert" style="display: none;">
+            <span class="alert-msg"></span>
+            <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+        </div>
         <form id="stuForm">
             <div class="form-group">
                 <label>Student ID (e.g., S001)</label>
@@ -83,7 +89,7 @@ async function submitForm(e, endpoint, inputs, alertId) {
         
         const alertEl = document.getElementById(alertId);
         alertEl.style.display = 'block';
-        alertEl.textContent = data.message;
+        alertEl.querySelector('.alert-msg').textContent = data.message;
         alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
         
         if (data.success) e.target.reset();

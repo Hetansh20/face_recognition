@@ -7,7 +7,10 @@
 
 <div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
     <h3 style="color: var(--accent-gold);">📅 Add Timetable Entry</h3>
-    <div id="tt-alert" class="alert" style="display: none;"></div>
+    <div id="tt-alert" class="alert" style="display: none;">
+        <span class="alert-msg"></span>
+        <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+    </div>
     
     <form id="ttForm" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: end;">
         <div class="form-group" style="margin: 0;">
@@ -108,7 +111,7 @@ document.getElementById('ttForm').addEventListener('submit', async (e) => {
         
         const alertEl = document.getElementById('tt-alert');
         alertEl.style.display = 'block';
-        alertEl.textContent = data.message;
+        alertEl.querySelector('.alert-msg').textContent = data.message;
         alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
         
         if (data.success) {

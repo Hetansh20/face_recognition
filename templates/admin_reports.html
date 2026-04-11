@@ -10,7 +10,10 @@
         <h3 style="color: var(--accent-green);">📁 Full Database Export</h3>
         <p>Export all registered attendance data across all faculties into a single CSV report.</p>
         
-        <div id="export-alert" class="alert" style="display: none; margin-top: 1rem;"></div>
+        <div id="export-alert" class="alert" style="display: none; margin-top: 1rem;">
+            <span class="alert-msg"></span>
+            <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+        </div>
         
         <button id="exportBtn" class="btn btn-success" style="margin-top: 1.5rem;">Export All Attendance to CSV</button>
     </div>
@@ -29,7 +32,7 @@ document.getElementById('exportBtn').addEventListener('click', async (e) => {
         
         const alertEl = document.getElementById('export-alert');
         alertEl.style.display = 'block';
-        alertEl.textContent = data.message;
+        alertEl.querySelector('.alert-msg').textContent = data.message;
         alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
     } catch (err) {
         console.error(err);
