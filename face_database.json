@@ -87,7 +87,7 @@
             "registered_faces\\Aditya_Raj_92301733062_left.jpg",
             "registered_faces\\Aditya_Raj_92301733062_right.jpg"
         ],
-        "registered": "imported-from-disk"
+        "registered": "2026-04-11 12:03:43"
     },
     "Albeija_Bernardete_Lola_Laissane_92301733003": {
         "name": "Albeija Bernardete Lola Laissane",
@@ -598,5 +598,55 @@
             "D:\\ML\\deepface\\face_recognition\\registered_faces\\Ansh_Raythatha_92301733042_right.jpg"
         ],
         "registered": "2026-04-10 16:29:49"
+    },
+    "Disha_Vadoliya_92301733028": {
+        "name": "Disha Vadoliya",
+        "employee_id": "92301733028",
+        "image_paths": [
+            "registered_faces\\Disha_Vadoliya_92301733028_front.jpg",
+            "registered_faces\\Disha_Vadoliya_92301733028_left.jpg",
+            "registered_faces\\Disha_Vadoliya_92301733028_right.jpg"
+        ],
+        "registered": "2026-04-11 12:04:35"
+    },
+    "Shivani_Ambati_92301733049": {
+        "name": "Shivani Ambati",
+        "employee_id": "92301733049",
+        "image_paths": [
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Shivani_Ambati_92301733049_front.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Shivani_Ambati_92301733049_left.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Shivani_Ambati_92301733049_right.jpg"
+        ],
+        "registered": "2026-04-11 12:26:01"
+    },
+    "Kathan_Kansagara_92301733064": {
+        "name": "Kathan Kansagara",
+        "employee_id": "92301733064",
+        "image_paths": [
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Kathan_Kansagara_92301733064_front.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Kathan_Kansagara_92301733064_left.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Kathan_Kansagara_92301733064_right.jpg"
+        ],
+        "registered": "2026-04-11 13:25:50"
+    },
+    "Dishant_Rupapara_92301733039": {
+        "name": "Dishant Rupapara",
+        "employee_id": "92301733039",
+        "image_paths": [
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Dishant_Rupapara_92301733039_front.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Dishant_Rupapara_92301733039_left.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Dishant_Rupapara_92301733039_right.jpg"
+        ],
+        "registered": "2026-04-11 13:26:55"
+    },
+    "Jahnvi_Aghera_92410133001": {
+        "name": "Jahnvi Aghera",
+        "employee_id": "92410133001",
+        "image_paths": [
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Jahnvi_Aghera_92410133001_front.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Jahnvi_Aghera_92410133001_left.jpg",
+            "/home/ghost/face-recognition/face_recognition/registered_faces/Jahnvi_Aghera_92410133001_right.jpg"
+        ],
+        "registered": "2026-04-11 13:33:35"
     }
 }

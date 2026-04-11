@@ -627,7 +627,10 @@ def api_train_model():
             
             person_vecs = []
             for img_path in paths:
-                abs_path = img_path if os.path.isabs(img_path) else os.path.join(BASE_DIR, img_path)
+                # Sanitize paths containing Windows slashes or absolute paths
+                filename = os.path.basename(img_path.replace('\\', '/'))
+                abs_path = os.path.join(FACES_DIR, filename)
+                
                 if not os.path.exists(abs_path):
                     print(f"[Train] Missing file: {abs_path}")
                     skipped += 1
