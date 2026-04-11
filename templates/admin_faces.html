@@ -3,7 +3,9 @@
 
 {% block content %}
 <style>
-    .reg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 1.5rem; }
+    .reg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem; margin-top: 1.5rem; }
+    .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; }
+    .form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; }
     #camWrap { position: relative; background: #000; border-radius: 8px; overflow:hidden; aspect-ratio: 4/3; }
     #camera  { width: 100%; height: 100%; object-fit: cover; display: block; }
     .overlay-hint { 
@@ -43,13 +45,40 @@
     <!-- LEFT: Camera Panel -->
     <div class="card">
         <h3 style="margin-bottom:1rem;">Capture New Face</h3>
-        <div class="form-group">
-            <label>Name</label>
-            <input type="text" id="faceName" placeholder="e.g. Ansh Raythatha">
+        <div class="form-grid-2" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Student ID</label><input type="text" id="faceId" placeholder="e.g. 92301733001"></div>
+            <div class="form-group"><label>Full Name</label><input type="text" id="faceName" placeholder="Full name"></div>
         </div>
-        <div class="form-group">
-            <label>Student / Roll ID</label>
-            <input type="text" id="faceId" placeholder="e.g. 22CS001">
+        <div class="form-grid-2" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Email</label><input type="email" id="faceEmail" placeholder="student@email.com"></div>
+            <div class="form-group"><label>Department</label><input type="text" id="faceDept" placeholder="e.g. CE"></div>
+        </div>
+        <div class="form-grid-3" style="margin-bottom:0.75rem;">
+            <div class="form-group">
+                <label>Semester</label>
+                <select id="faceSem" onchange="loadClasses(this.value)">
+                    <option value="">Select</option>
+                    {% for s in semesters %}
+                    <option value="{{ s[0] }}">Sem {{ s[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Class</label>
+                <select id="faceClass" onchange="loadBatches(this.value)">
+                    <option value="">Select</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Batch</label>
+                <select id="faceBatch">
+                    <option value="">Select</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-grid-2" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Roll Number</label><input type="text" id="faceRoll" placeholder="Class roll number"></div>
+            <div class="form-group"><label>Phone</label><input type="text" id="facePhone" placeholder="10-digit phone"></div>
         </div>
 
         <div id="camWrap">
@@ -140,15 +169,30 @@ function captureFrame() {
 async function registerFace() {
     const name = document.getElementById('faceName').value.trim();
     const eid = document.getElementById('faceId').value.trim();
-    if (!name) { alert('Please enter a name'); return; }
+    const email = document.getElementById('faceEmail').value.trim();
+    const dept = document.getElementById('faceDept').value.trim();
+    const classId = document.getElementById('faceClass').value;
+    const batchId = document.getElementById('faceBatch').value;
+    const roll = document.getElementById('faceRoll').value.trim();
+    const phone = document.getElementById('facePhone').value.trim();
+
+    if (!name || !eid || !email) { alert('Please enter Student ID, Name, and Email.'); return; }
     if (captures.length < 3) { alert('Capture 3 angles first'); return; }
 
     const btn = document.getElementById('registerBtn');
     btn.disabled = true; btn.textContent = 'Registering...';
 
+    const payload = {
+        name: name, employee_id: eid, email: email, department: dept,
+        class_id: classId ? parseInt(classId) : null,
+        batch_id: batchId ? parseInt(batchId) : null,
+        roll_number: roll || null, phone: phone || null,
+        frames: captures
+    };
+
     const res = await fetch('/api/admin/save_face', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ name, employee_id: eid, frames: captures })
+        body: JSON.stringify(payload)
     });
     const data = await res.json();
     const msg = document.getElementById('regMsg');
@@ -159,10 +203,37 @@ async function registerFace() {
     if (data.success) {
         captures = []; captureStep = 0;
         document.getElementById('registerBtn').style.display = 'none';
-        document.getElementById('faceName').value = '';
-        document.getElementById('faceId').value = '';
+        ['faceName', 'faceId', 'faceEmail', 'faceDept', 'faceSem', 'faceClass', 'faceBatch', 'faceRoll', 'facePhone'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
         loadFaces();
     }
+}
+
+async function loadClasses(semId) {
+    const sel = document.getElementById('faceClass');
+    sel.innerHTML = '<option value="">Select</option>';
+    document.getElementById('faceBatch').innerHTML = '<option value="">Select</option>';
+    if (!semId) return;
+    const res = await fetch('/api/admin/classes', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ semester_id: parseInt(semId) })
+    });
+    const r = await res.json();
+    r.classes.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); });
+}
+
+async function loadBatches(classId) {
+    const sel = document.getElementById('faceBatch');
+    sel.innerHTML = '<option value="">Select</option>';
+    if (!classId) return;
+    const res = await fetch('/api/admin/batches', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ class_id: parseInt(classId) })
+    });
+    const r = await res.json();
+    r.batches.forEach(b => { const o = document.createElement('option'); o.value = b.id; o.textContent = 'Batch ' + b.name; sel.appendChild(o); });
 }
 
 async function loadFaces() {
@@ -178,18 +249,33 @@ async function loadFaces() {
     el.innerHTML = `
     <table style="width:100%; border-collapse:collapse;" class="faces-table">
         <thead><tr>
-            <th>Name</th><th>ID</th><th>Images</th><th>Registered</th><th></th>
+            <th>Student</th><th>Linked Class/Batch</th><th>Images</th><th>Registered</th><th></th>
         </tr></thead>
         <tbody>
-        ${data.people.map(p => `
+        ${data.people.map(p => {
+            let stuInfo = '<span class="badge badge-gray" style="font-size:0.7rem;">Unlinked</span>';
+            if (p.linked_stu) {
+                stuInfo  = `<div style="display:flex; gap:0.25rem; flex-wrap:wrap;">`;
+                stuInfo += `<span class="badge badge-blue">${p.linked_stu.class}</span>`;
+                stuInfo += `<span class="badge badge-green">Batch ${p.linked_stu.batch}</span>`;
+                if (p.linked_stu.roll) stuInfo += `<span class="badge badge-gray" style="background:transparent; border:1px solid var(--border-color);">${p.linked_stu.roll}</span>`;
+                stuInfo += `</div>`;
+            }
+            return `
             <tr>
-                <td>${p.name}</td>
-                <td style="color:var(--text-muted)">${p.employee_id || '—'}</td>
+                <td>
+                    <div style="font-weight:500;">${p.name}</div>
+                    <div style="color:var(--text-muted); font-size:0.8rem; margin-top:2px;">
+                        ${p.linked_stu ? p.linked_stu.student_id : (p.employee_id || '—')}
+                    </div>
+                </td>
+                <td>${stuInfo}</td>
                 <td><span class="${p.image_count >= 3 ? 'badge-trained' : 'badge-pending'}">${p.image_count} photos</span></td>
-                <td style="color:var(--text-muted); font-size:0.8rem;">${p.registered.substring(0,10) || '—'}</td>
+                <td style="color:var(--text-muted); font-size:0.8rem;">${(p.registered || '').substring(0,10) || '—'}</td>
                 <td><button class="btn btn-outline" style="padding:3px 10px;font-size:0.78rem;color:var(--accent-red);border-color:var(--accent-red);" onclick="deleteFace('${p.person_id}', '${p.name}')">Delete</button></td>
             </tr>
-        `).join('')}
+            `;
+        }).join('')}
         </tbody>
     </table>`;
 }
