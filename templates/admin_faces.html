@@ -14,18 +14,18 @@
     .capture-steps { display: flex; gap: 1rem; margin: 1rem 0; }
     .step-thumb { 
         flex:1; aspect-ratio:4/3; border-radius:6px; 
-        background:#161b22; border:2px dashed var(--border-color);
+        background:var(--bg-hover); border:2px dashed var(--border-color);
         display:flex; align-items:center; justify-content:center;
         color:var(--text-muted); font-size:0.75rem; text-align:center;
         overflow:hidden;
     }
-    .step-thumb.done { border-color: #2ea043; }
+    .step-thumb.done { border-color: var(--accent-green); }
     .step-thumb img { width:100%; height:100%; object-fit:cover; }
     .faces-table th, .faces-table td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
     .faces-table th { color: var(--text-muted); font-size:0.8rem; text-transform:uppercase; letter-spacing:.05em; }
-    .badge-trained { background:#1a4731; color:#2ea043; padding:2px 8px; border-radius:20px; font-size:0.78rem; }
-    .badge-pending { background:#3d2a00; color:#e3b341; padding:2px 8px; border-radius:20px; font-size:0.78rem; }
-    #trainBar { display:none; height:4px; margin-top:1rem; background:#2ea043; border-radius:4px; animation: pulse 1.5s infinite; }
+    .badge-trained { background:rgba(16,185,129,0.1); color:var(--accent-green); padding:2px 8px; border-radius:20px; font-size:0.78rem; border:1px solid rgba(16,185,129,0.2); }
+    .badge-pending { background:rgba(217,119,6,0.1); color:var(--accent-gold); padding:2px 8px; border-radius:20px; font-size:0.78rem; border:1px solid rgba(217,119,6,0.2); }
+    #trainBar { display:none; height:4px; margin-top:1rem; background:var(--accent-green); border-radius:4px; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 </style>
 
@@ -152,7 +152,7 @@ async function registerFace() {
     });
     const data = await res.json();
     const msg = document.getElementById('regMsg');
-    msg.style.color = data.success ? '#2ea043' : '#da3633';
+    msg.style.color = data.success ? 'var(--accent-green)' : 'var(--accent-red)';
     msg.textContent = data.message;
     btn.disabled = false; btn.textContent = '✅ Register Face';
     
@@ -187,7 +187,7 @@ async function loadFaces() {
                 <td style="color:var(--text-muted)">${p.employee_id || '—'}</td>
                 <td><span class="${p.image_count >= 3 ? 'badge-trained' : 'badge-pending'}">${p.image_count} photos</span></td>
                 <td style="color:var(--text-muted); font-size:0.8rem;">${p.registered.substring(0,10) || '—'}</td>
-                <td><button class="btn btn-outline" style="padding:3px 10px;font-size:0.78rem;color:#da3633;border-color:#da3633;" onclick="deleteFace('${p.person_id}', '${p.name}')">Delete</button></td>
+                <td><button class="btn btn-outline" style="padding:3px 10px;font-size:0.78rem;color:var(--accent-red);border-color:var(--accent-red);" onclick="deleteFace('${p.person_id}', '${p.name}')">Delete</button></td>
             </tr>
         `).join('')}
         </tbody>
@@ -218,7 +218,7 @@ async function trainModel() {
     const data = await res.json();
     
     bar.style.display = 'none';
-    msg.style.color = data.success ? '#2ea043' : '#da3633';
+    msg.style.color = data.success ? 'var(--accent-green)' : 'var(--accent-red)';
     msg.textContent = data.message;
     btn.disabled = false; btn.textContent = '🧠 Train AI Model';
 }
