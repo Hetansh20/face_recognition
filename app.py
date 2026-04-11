@@ -173,7 +173,7 @@ def admin_structure():
 def api_add_semester():
     data = request.json
     try:
-        sid = get_db().add_semester(data['number'], data['label'])
+        sid = get_db().add_semester(data['number'], data['label'], data.get('level'))
         return jsonify({"success": True, "message": "Semester added.", "id": sid})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
@@ -196,9 +196,9 @@ def api_get_classes():
 @app.route("/api/admin/class/add", methods=["POST"])
 @admin_required
 def api_add_class():
-    d = request.json
+    data = request.json
     try:
-        cid = get_db().add_class(d['semester_id'], d['name'], d.get('section'))
+        cid = get_db().add_class(data['semester_id'], data['name'])
         return jsonify({"success": True, "message": "Class added.", "id": cid})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
@@ -258,7 +258,7 @@ def admin_students():
     if os.path.exists(FACE_DB):
         with open(FACE_DB) as f:
             face_db = _json.load(f)
-    linked_pids = {s[9] for s in students if s[9]}  # face_pid column
+    linked_pids = {s[11] for s in students if len(s) > 11 and s[11]}  # face_pid column index
     unlinked_faces = {pid: info for pid, info in face_db.items() if pid not in linked_pids}
 
     return render_template(
@@ -272,7 +272,7 @@ def admin_students():
         batch_map=batch_map,
         unlinked_faces=unlinked_faces,
         students_json=_json.dumps([list(s) for s in students]),
-        classes_json=_json.dumps([{"id": c[0], "name": c[2]} for c in classes]),
+        classes_json=_json.dumps([{"id": c[0], "sem_id": c[1], "name": c[2]} for c in classes]),
         batches_json=_json.dumps([{"id": b[0], "name": b[2], "class_id": b[1]} for b in all_batches]),
     )
 

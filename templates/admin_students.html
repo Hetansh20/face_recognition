@@ -58,25 +58,27 @@
 <table class="student-table" id="studentTable">
     <thead>
         <tr>
-            <th>Student ID</th><th>Name</th><th>Class</th><th>Batch</th>
+            <th>Sr. No.</th><th>Name</th><th>Class</th><th>Batch</th>
             <th>Roll No.</th><th>Email</th><th>Face</th><th>Actions</th>
         </tr>
     </thead>
     <tbody id="studentBody">
         {% for stu in students %}
-        <tr id="row-{{ stu[0] }}">
-            <td><code>{{ stu[1] }}</code></td>
-            <td>{{ stu[2] }}</td>
+        <tr id="row-{{ stu[0] }}" data-class-id="{{ stu[5] or '' }}">
+            <td style="color:var(--text-muted); font-size:0.85rem;">{{ loop.index }}</td>
+            <td style="font-weight:600;">{{ stu[2] }}</td>
             <td>{% if stu[5] %}<span class="badge badge-blue">{{ class_map.get(stu[5], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
-            <td>{% if stu[6] %}<span class="badge badge-green">Batch {{ batch_map.get(stu[6], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
-            <td>{{ stu[7] or '—' }}</td>
+            <td>{% if stu[6] %}<span class="badge badge-green">{{ batch_map.get(stu[6], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
+            <td><code>{{ stu[1] }}</code></td>
             <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu[3] }}</td>
-            <td>{% if stu[9] %}<span class="badge badge-green">✓</span>{% else %}<span class="badge badge-gray">✗</span>{% endif %}</td>
+            <td>{% if stu[11] %}<span class="badge badge-green">✓</span>{% else %}<span class="badge badge-gray">✗</span>{% endif %}</td>
             <td>
-                <button class="btn btn-outline" style="font-size:0.75rem; padding:3px 10px;"
-                    onclick="openEdit({{ stu[0] }}, {{ stu|tojson }})">Edit</button>
-                <button style="background:#da3633; color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:0.75rem; cursor:pointer; margin-left:4px;"
-                    onclick="deleteStudent({{ stu[0] }})">Del</button>
+                <div style="display:flex; gap:0.4rem; align-items:center;">
+                    <button class="btn btn-outline" style="font-size:0.75rem; padding:3px 10px;"
+                        data-id="{{ stu[0] }}" onclick="openEdit(this)">Edit</button>
+                    <button style="background:var(--accent-red); color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:0.75rem; cursor:pointer;"
+                        onclick="deleteStudent('{{ stu[0] }}')">Del</button>
+                </div>
             </td>
         </tr>
         {% endfor %}
@@ -96,7 +98,7 @@
         <div class="face-row">
             <div>
                 <div class="name">{{ stu[2] }}</div>
-                <div class="emp">{{ stu[1] }} · {{ class_map.get(stu[5], 'No class') }}</div>
+                <div class="emp">ID: {{ stu[1] }} · {{ class_map.get(stu[5], 'No class assigned') }}</div>
             </div>
             <span class="badge badge-gray">No face</span>
         </div>
@@ -119,7 +121,10 @@
                 <div class="emp">{{ info.employee_id or 'No ID' }} · Face DB key: <code>{{ pid }}</code></div>
             </div>
             <button class="btn btn-outline" style="font-size:0.78rem; padding:3px 12px;"
-                onclick="openLinkModal('{{ pid }}', '{{ info.name }}', '{{ info.employee_id or '' }}')">
+                data-pid="{{ pid }}" 
+                data-name="{{ info.name|forceescape }}" 
+                data-empid="{{ info.employee_id or '' }}" 
+                onclick="openLinkModal(this)">
                 🔗 Link
             </button>
         </div>
@@ -149,7 +154,7 @@
                 <select id="iSem" onchange="loadClassesInModal(this.value)">
                     <option value="">Select</option>
                     {% for s in semesters %}
-                    <option value="{{ s[0] }}">Sem {{ s[1] }} — {{ s[2] }}</option>
+                    <option value="{{ s[0] }}">{{ s[5] or s[3] or 'Degree' }} - Sem {{ s[1] }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -202,11 +207,15 @@
         </div>
     </div>
 </div>
+<!-- JSON Data Islands for Safe Data Injection -->
+<script id="students-data" type="application/json">{{ students_json|safe }}</script>
+<script id="classes-data" type="application/json">{{ classes_json|safe }}</script>
+<script id="batches-data" type="application/json">{{ batches_json|safe }}</script>
 
 <script>
-let allStudents = {{ students_json|safe }};
-let classesData  = {{ classes_json|safe }};
-let batchesData  = {{ batches_json|safe }};
+let allStudents = JSON.parse(document.getElementById('students-data').textContent);
+let classesData  = JSON.parse(document.getElementById('classes-data').textContent);
+let batchesData  = JSON.parse(document.getElementById('batches-data').textContent);
 
 // ── Tab switching ────────────────────────────────────────────
 function switchTab(tab, btn) {
@@ -241,13 +250,38 @@ function openAddModal() {
     document.getElementById('stuModal').style.display = 'flex';
 }
 
-async function openEdit(id, stu) {
+async function openEdit(btn) {
+    const id = btn.dataset.id;
+    // Find student in our pre-loaded list
+    const stu = allStudents.find(s => s[0] == id);
+    if (!stu) return;
+
+    // Find semester_id (sem_id) from class_id via classesData
+    const classId = stu[5];
+    const classInfo = classesData.find(c => c.id == classId);
+    const semId = classInfo ? classInfo.sem_id : '';
+
     document.getElementById('stuId').value = id;
     document.getElementById('stuModalTitle').textContent = 'Edit Student';
     document.getElementById('iStudentId').value = stu[1];
     document.getElementById('iName').value       = stu[2];
     document.getElementById('iEmail').value      = stu[3];
     document.getElementById('iDept').value       = stu[4];
+    
+    // Set Semester and trigger cascading loads
+    document.getElementById('iSem').value = semId;
+    if (semId) {
+        await loadClassesInModal(semId);
+        document.getElementById('iClass').value = classId || '';
+        if (classId) {
+            await loadBatchesInModal(classId);
+            document.getElementById('iBatch').value = stu[6] || '';
+        }
+    } else {
+        document.getElementById('iClass').innerHTML = '<option value="">Select</option>';
+        document.getElementById('iBatch').innerHTML = '<option value="">Select</option>';
+    }
+
     document.getElementById('iRoll').value       = stu[7] || '';
     document.getElementById('iPhone').value      = stu[8] || '';
     document.getElementById('stuModalMsg').textContent = '';
@@ -303,10 +337,10 @@ async function deleteStudent(id) {
 
 // ── Link Face ────────────────────────────────────────────────
 let linkPid = '';
-function openLinkModal(pid, name, empId) {
-    linkPid = pid;
-    document.getElementById('linkFaceName').textContent = name;
-    document.getElementById('linkFacePid').textContent  = pid;
+function openLinkModal(btn) {
+    linkPid = btn.dataset.pid;
+    document.getElementById('linkFaceName').textContent = btn.dataset.name;
+    document.getElementById('linkFacePid').textContent  = linkPid;
     document.getElementById('linkStudentSel').value = '';
     document.getElementById('linkMsg').textContent = '';
     document.getElementById('linkModal').style.display = 'flex';

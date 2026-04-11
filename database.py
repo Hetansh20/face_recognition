@@ -54,7 +54,8 @@ class Database:
             CREATE TABLE IF NOT EXISTS semesters (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 number     INTEGER UNIQUE NOT NULL,
-                label      TEXT NOT NULL,
+                label      TEXT,
+                level      TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -172,6 +173,9 @@ class Database:
         self._add_column_if_missing("timetables", "batch_id",    "INTEGER")
         self._add_column_if_missing("timetables", "subject_name","TEXT")
 
+        # Simplified schema: level directly on semesters
+        self._add_column_if_missing("semesters",  "level",   "TEXT")
+
         self.conn.commit()
         self.disconnect()
 
@@ -244,11 +248,11 @@ class Database:
 
     # ──────────────────────── Semesters ──────────────────────────────
 
-    def add_semester(self, number, label):
+    def add_semester(self, number, label=None, level=None):
         self.connect()
         try:
             self.cursor.execute(
-                'INSERT INTO semesters (number, label) VALUES (?, ?)', (number, label)
+                'INSERT INTO semesters (number, label, level) VALUES (?, ?, ?)', (number, label, level)
             )
             self.conn.commit()
             sid = self.cursor.lastrowid; self.disconnect(); return sid
@@ -267,12 +271,11 @@ class Database:
 
     # ──────────────────────── Classes ────────────────────────────────
 
-    def add_class(self, semester_id, name, section=None):
+    def add_class(self, semester_id, name):
         self.connect()
         try:
             self.cursor.execute(
-                'INSERT INTO classes (semester_id, name, section) VALUES (?, ?, ?)',
-                (semester_id, name, section)
+                'INSERT INTO classes (semester_id, name) VALUES (?, ?)', (semester_id, name)
             )
             self.conn.commit()
             cid = self.cursor.lastrowid; self.disconnect(); return cid
