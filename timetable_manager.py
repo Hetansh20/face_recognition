@@ -7,15 +7,18 @@ class TimetableManager:
     def __init__(self):
         self.db = Database()
     
-    def add_timetable_entry(self, faculty_id, class_name, day_of_week, start_time, end_time, room_number=None):
+    def add_timetable_entry(self, faculty_id, class_name, day_of_week, start_time, end_time,
+                            room_number=None, class_id=None, batch_id=None, subject_name=None):
         """Add a new timetable entry"""
         try:
             timetable_id = self.db.add_timetable(
-                faculty_id, class_name, day_of_week, start_time, end_time, room_number
+                faculty_id, class_name, day_of_week, start_time, end_time,
+                room_number, class_id, batch_id, subject_name
             )
             return timetable_id, "Timetable entry added successfully"
         except Exception as e:
             return None, f"Error adding timetable: {str(e)}"
+
     
     def get_faculty_schedule(self, faculty_id):
         """Get complete schedule for a faculty"""

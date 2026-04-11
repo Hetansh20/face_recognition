@@ -1,0 +1,334 @@
+{% extends "admin_base.html" %}
+{% block title %}Student Management{% endblock %}
+{% block content %}
+<style>
+.section-tabs { display:flex; gap:0.5rem; margin:1.5rem 0 1rem; }
+.tab-btn { padding:0.5rem 1.2rem; border-radius:6px; border:1px solid var(--border-color);
+           background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.88rem; transition:all 0.15s; }
+.tab-btn.active { background:var(--accent-blue); color:#fff; border-color:var(--accent-blue); }
+
+.student-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+.student-table th { padding:0.6rem 0.8rem; text-align:left; border-bottom:2px solid var(--border-color);
+                    color:var(--text-muted); font-weight:600; font-size:0.78rem; text-transform:uppercase; }
+.student-table td { padding:0.55rem 0.8rem; border-bottom:1px solid #21262d; vertical-align:middle; }
+.student-table tr:hover td { background:rgba(255,255,255,0.03); }
+
+.badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.75rem; }
+.badge-blue { background:#1f3a5f; color:#58a6ff; }
+.badge-green { background:#1a4731; color:#3fb950; }
+.badge-gray { background:#21262d; color:#8b949e; }
+
+.form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; }
+.form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; }
+
+.face-row { display:flex; align-items:center; gap:1rem; padding:0.75rem;
+            border:1px solid var(--border-color); border-radius:8px; margin-bottom:0.5rem; }
+.face-row .name { font-weight:500; flex:1; }
+.face-row .emp { color:var(--text-muted); font-size:0.82rem; }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem; flex-wrap:wrap; gap:1rem;">
+    <div>
+        <h2>🎓 Student Management</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Register, edit and map students to their class and batch.</p>
+    </div>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add Student</button>
+</div>
+
+<div class="section-tabs">
+    <button class="tab-btn active" onclick="switchTab('list', this)">All Students</button>
+    <button class="tab-btn" onclick="switchTab('noface', this)">⚠️ No Face Registered</button>
+    <button class="tab-btn" onclick="switchTab('unlinked', this)">🔗 Unlinked Faces</button>
+</div>
+
+<!-- Search + filter bar -->
+<div style="display:flex; gap:0.75rem; margin-bottom:1rem;" id="searchBar">
+    <input id="searchQ" type="text" placeholder="Search name / roll / email…" style="flex:1;" oninput="searchStudents()">
+    <select id="filterClass" onchange="searchStudents()" style="width:160px;">
+        <option value="">All Classes</option>
+        {% for c in classes %}
+        <option value="{{ c[0] }}">{{ c[2] }} (Sem {{ c[4] }})</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- ── TAB: All Students ──────────────────────────────────────── -->
+<div id="tab-list">
+<div style="overflow-x:auto;">
+<table class="student-table" id="studentTable">
+    <thead>
+        <tr>
+            <th>Student ID</th><th>Name</th><th>Class</th><th>Batch</th>
+            <th>Roll No.</th><th>Email</th><th>Face</th><th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="studentBody">
+        {% for stu in students %}
+        <tr id="row-{{ stu[0] }}">
+            <td><code>{{ stu[1] }}</code></td>
+            <td>{{ stu[2] }}</td>
+            <td>{% if stu[5] %}<span class="badge badge-blue">{{ class_map.get(stu[5], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
+            <td>{% if stu[6] %}<span class="badge badge-green">Batch {{ batch_map.get(stu[6], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
+            <td>{{ stu[7] or '—' }}</td>
+            <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu[3] }}</td>
+            <td>{% if stu[9] %}<span class="badge badge-green">✓</span>{% else %}<span class="badge badge-gray">✗</span>{% endif %}</td>
+            <td>
+                <button class="btn btn-outline" style="font-size:0.75rem; padding:3px 10px;"
+                    onclick="openEdit({{ stu[0] }}, {{ stu|tojson }})">Edit</button>
+                <button style="background:#da3633; color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:0.75rem; cursor:pointer; margin-left:4px;"
+                    onclick="deleteStudent({{ stu[0] }})">Del</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+<p style="color:var(--text-muted); font-size:0.82rem; margin-top:0.5rem;">{{ students|length }} students total</p>
+</div>
+
+<!-- ── TAB: No Face ───────────────────────────────────────────── -->
+<div id="tab-noface" style="display:none;">
+    <div class="card" style="padding:1.2rem;">
+        <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">
+            These students are in the DB but haven't registered a face yet. Ask them to visit <strong>Admin → 🎭 Faces</strong> for registration.
+        </p>
+        {% for stu in no_face %}
+        <div class="face-row">
+            <div>
+                <div class="name">{{ stu[2] }}</div>
+                <div class="emp">{{ stu[1] }} · {{ class_map.get(stu[5], 'No class') }}</div>
+            </div>
+            <span class="badge badge-gray">No face</span>
+        </div>
+        {% else %}
+        <p style="color:#2ea043;">✅ All students have a face registered!</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ── TAB: Unlinked Faces ────────────────────────────────────── -->
+<div id="tab-unlinked" style="display:none;">
+    <div class="card" style="padding:1.2rem;">
+        <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">
+            These faces exist in the AI face database but are not linked to any student record. Click <strong>Link</strong> to assign them.
+        </p>
+        {% for pid, info in unlinked_faces.items() %}
+        <div class="face-row">
+            <div>
+                <div class="name">{{ info.name }}</div>
+                <div class="emp">{{ info.employee_id or 'No ID' }} · Face DB key: <code>{{ pid }}</code></div>
+            </div>
+            <button class="btn btn-outline" style="font-size:0.78rem; padding:3px 12px;"
+                onclick="openLinkModal('{{ pid }}', '{{ info.name }}', '{{ info.employee_id or '' }}')">
+                🔗 Link
+            </button>
+        </div>
+        {% else %}
+        <p style="color:#2ea043;">✅ All registered faces are linked to students!</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ── Add / Edit Modal ───────────────────────────────────────── -->
+<div class="modal-overlay" id="stuModal">
+    <div class="modal" style="max-width:560px; max-height:90vh; overflow-y:auto;">
+        <h3 id="stuModalTitle" style="margin-bottom:1rem;">Add Student</h3>
+        <input type="hidden" id="stuId">
+
+        <div class="form-grid-2" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Student ID / Roll</label><input id="iStudentId" placeholder="e.g. 92301733001"></div>
+            <div class="form-group"><label>Full Name</label><input id="iName" placeholder="Full name"></div>
+        </div>
+        <div class="form-grid-2" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Email</label><input id="iEmail" type="email" placeholder="student@email.com"></div>
+            <div class="form-group"><label>Department</label><input id="iDept" placeholder="e.g. CE"></div>
+        </div>
+        <div class="form-grid-3" style="margin-bottom:0.75rem;">
+            <div class="form-group">
+                <label>Semester</label>
+                <select id="iSem" onchange="loadClassesInModal(this.value)">
+                    <option value="">Select</option>
+                    {% for s in semesters %}
+                    <option value="{{ s[0] }}">Sem {{ s[1] }} — {{ s[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Class</label>
+                <select id="iClass" onchange="loadBatchesInModal(this.value)">
+                    <option value="">Select</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Batch</label>
+                <select id="iBatch">
+                    <option value="">Select</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-grid-2" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Roll Number</label><input id="iRoll" placeholder="Class roll number"></div>
+            <div class="form-group"><label>Phone</label><input id="iPhone" placeholder="10-digit phone"></div>
+        </div>
+
+        <p id="stuModalMsg" style="font-size:0.85rem; margin-bottom:0.5rem;"></p>
+        <div style="display:flex; gap:1rem; margin-top:1rem;">
+            <button class="btn btn-outline" style="flex:1;" onclick="closeStuModal()">Cancel</button>
+            <button class="btn btn-primary" style="flex:1;" id="stuSaveBtn" onclick="saveStudent()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Link Face Modal ────────────────────────────────────────── -->
+<div class="modal-overlay" id="linkModal">
+    <div class="modal" style="max-width:420px;">
+        <h3 style="margin-bottom:0.75rem;">🔗 Link Face to Student</h3>
+        <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">
+            Linking face <strong id="linkFaceName"></strong> (<code id="linkFacePid"></code>)
+        </p>
+        <div class="form-group">
+            <label>Select Student to Link</label>
+            <select id="linkStudentSel">
+                <option value="">— choose —</option>
+                {% for stu in students %}
+                <option value="{{ stu[0] }}">{{ stu[2] }} ({{ stu[1] }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <p id="linkMsg" style="font-size:0.85rem; margin-top:0.4rem;"></p>
+        <div style="display:flex; gap:1rem; margin-top:1rem;">
+            <button class="btn btn-outline" style="flex:1;" onclick="closeLinkModal()">Cancel</button>
+            <button class="btn btn-primary" style="flex:1;" onclick="confirmLink()">Link</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let allStudents = {{ students_json|safe }};
+let classesData  = {{ classes_json|safe }};
+let batchesData  = {{ batches_json|safe }};
+
+// ── Tab switching ────────────────────────────────────────────
+function switchTab(tab, btn) {
+    ['list','noface','unlinked'].forEach(t => document.getElementById('tab-'+t).style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+tab).style.display = 'block';
+    btn.classList.add('active');
+    document.getElementById('searchBar').style.display = tab === 'list' ? 'flex' : 'none';
+}
+
+// ── Search ───────────────────────────────────────────────────
+function searchStudents() {
+    const q   = document.getElementById('searchQ').value.toLowerCase();
+    const cls = document.getElementById('filterClass').value;
+    const tbody = document.getElementById('studentBody');
+    tbody.querySelectorAll('tr').forEach(row => {
+        const text = row.innerText.toLowerCase();
+        const clsId = row.dataset.classId;
+        const matchQ   = !q   || text.includes(q);
+        const matchCls = !cls || clsId === cls;
+        row.style.display = (matchQ && matchCls) ? '' : 'none';
+    });
+}
+
+// ── Add / Edit Modal ──────────────────────────────────────────
+function openAddModal() {
+    document.getElementById('stuId').value = '';
+    document.getElementById('stuModalTitle').textContent = 'Add Student';
+    ['iStudentId','iName','iEmail','iDept','iRoll','iPhone'].forEach(id => document.getElementById(id).value = '');
+    ['iSem','iClass','iBatch'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('stuModalMsg').textContent = '';
+    document.getElementById('stuModal').style.display = 'flex';
+}
+
+async function openEdit(id, stu) {
+    document.getElementById('stuId').value = id;
+    document.getElementById('stuModalTitle').textContent = 'Edit Student';
+    document.getElementById('iStudentId').value = stu[1];
+    document.getElementById('iName').value       = stu[2];
+    document.getElementById('iEmail').value      = stu[3];
+    document.getElementById('iDept').value       = stu[4];
+    document.getElementById('iRoll').value       = stu[7] || '';
+    document.getElementById('iPhone').value      = stu[8] || '';
+    document.getElementById('stuModalMsg').textContent = '';
+    document.getElementById('stuModal').style.display = 'flex';
+}
+
+function closeStuModal() { document.getElementById('stuModal').style.display = 'none'; }
+
+async function loadClassesInModal(semId) {
+    const sel = document.getElementById('iClass');
+    sel.innerHTML = '<option value="">Select</option>';
+    document.getElementById('iBatch').innerHTML = '<option value="">Select</option>';
+    if (!semId) return;
+    const r = await post('/api/admin/classes', { semester_id: parseInt(semId) });
+    r.classes.forEach(c => { const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o); });
+}
+
+async function loadBatchesInModal(classId) {
+    const sel = document.getElementById('iBatch');
+    sel.innerHTML = '<option value="">Select</option>';
+    if (!classId) return;
+    const r = await post('/api/admin/batches', { class_id: parseInt(classId) });
+    r.batches.forEach(b => { const o=document.createElement('option'); o.value=b.id; o.textContent='Batch '+b.name; sel.appendChild(o); });
+}
+
+async function saveStudent() {
+    const id = document.getElementById('stuId').value;
+    const payload = {
+        student_id:  document.getElementById('iStudentId').value.trim(),
+        name:        document.getElementById('iName').value.trim(),
+        email:       document.getElementById('iEmail').value.trim(),
+        department:  document.getElementById('iDept').value.trim(),
+        class_id:    parseInt(document.getElementById('iClass').value) || null,
+        batch_id:    parseInt(document.getElementById('iBatch').value) || null,
+        roll_number: document.getElementById('iRoll').value.trim() || null,
+        phone:       document.getElementById('iPhone').value.trim() || null,
+    };
+    if (!payload.student_id || !payload.name || !payload.email)
+        return setModalMsg('stuModalMsg', 'Student ID, Name and Email are required.', 'red');
+
+    const url = id ? '/api/admin/student/update' : '/api/admin/student/add';
+    if (id) payload.id = parseInt(id);
+    const r = await post(url, payload);
+    setModalMsg('stuModalMsg', r.message, r.success ? 'green' : 'red');
+    if (r.success) setTimeout(() => location.reload(), 800);
+}
+
+async function deleteStudent(id) {
+    if (!confirm('Deactivate this student?')) return;
+    const r = await post('/api/admin/student/delete', { id });
+    if (r.success) document.getElementById('row-'+id).remove();
+}
+
+// ── Link Face ────────────────────────────────────────────────
+let linkPid = '';
+function openLinkModal(pid, name, empId) {
+    linkPid = pid;
+    document.getElementById('linkFaceName').textContent = name;
+    document.getElementById('linkFacePid').textContent  = pid;
+    document.getElementById('linkStudentSel').value = '';
+    document.getElementById('linkMsg').textContent = '';
+    document.getElementById('linkModal').style.display = 'flex';
+}
+function closeLinkModal() { document.getElementById('linkModal').style.display = 'none'; }
+async function confirmLink() {
+    const stuId = document.getElementById('linkStudentSel').value;
+    if (!stuId) return;
+    const r = await post('/api/admin/student/link_face', { student_id: parseInt(stuId), face_pid: linkPid });
+    setModalMsg('linkMsg', r.message, r.success ? 'green' : 'red');
+    if (r.success) setTimeout(() => location.reload(), 800);
+}
+
+function setModalMsg(id, msg, color) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.color = color === 'green' ? '#2ea043' : '#da3633';
+}
+
+async function post(url, body) {
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    return res.json();
+}
+</script>
+{% endblock %}

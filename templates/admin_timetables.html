@@ -1,127 +1,192 @@
 {% extends "admin_base.html" %}
 {% block title %}Timetables{% endblock %}
-
 {% block content %}
-<h2>Manage Timetables</h2>
-<p>Class schedules are used to automatically detect the active session when a faculty logs in.</p>
+<style>
+.tt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; align-items:end; }
+.cascade-row { display:flex; gap:0.75rem; margin-bottom:1rem; }
+.cascade-row select { flex:1; }
+</style>
 
-<div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
-    <h3 style="color: var(--accent-gold);">📅 Add Timetable Entry</h3>
-    <div id="tt-alert" class="alert" style="display: none;">
+<div style="margin-top:1.5rem;">
+    <h2>📅 Timetables</h2>
+    <p style="color:var(--text-muted);">Class schedules auto-start the attendance session when a faculty logs in at the right time.</p>
+</div>
+
+<div style="background:var(--bg-card); padding:2rem; border-radius:var(--radius-md); border:1px solid var(--border-color); margin-bottom:2rem;">
+    <h3 style="color:var(--accent-gold); margin-bottom:1.2rem;">+ Add Timetable Entry</h3>
+    <div id="tt-alert" class="alert" style="display:none;">
         <span class="alert-msg"></span>
         <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
     </div>
-    
-    <form id="ttForm" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: end;">
-        <div class="form-group" style="margin: 0;">
-            <label>Faculty</label>
-            <select id="t_faculty" required>
-                <option value="" disabled selected>Select Faculty...</option>
-                {% for f in faculties %}
+
+    <form id="ttForm">
+        <!-- Row 1: Faculty + Class (hierarchy) -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:1rem; margin-bottom:1rem; align-items:end;">
+            <div class="form-group" style="margin:0;">
+                <label>Faculty</label>
+                <select id="t_faculty" required>
+                    <option value="" disabled selected>Select Faculty…</option>
+                    {% for f in faculties %}
                     <option value="{{ f[0] }}">{{ f[1] }} ({{ f[2] }})</option>
-                {% endfor %}
-            </select>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Semester</label>
+                <select id="t_sem" onchange="loadTTClasses(this.value)">
+                    <option value="">Select…</option>
+                    {% for s in semesters %}
+                    <option value="{{ s[0] }}">Sem {{ s[1] }} — {{ s[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Class</label>
+                <select id="t_class_id" onchange="loadTTBatches(this.value)">
+                    <option value="">Select…</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Batch (empty = whole class)</label>
+                <select id="t_batch_id">
+                    <option value="">— Whole Class —</option>
+                </select>
+            </div>
         </div>
-        <div class="form-group" style="margin: 0;">
-            <label>Class Name</label>
-            <input type="text" id="t_class" placeholder="e.g., CS101" required>
+
+        <!-- Row 2: Subject + Day + Times + Room -->
+        <div class="tt-grid" style="margin-bottom:1rem;">
+            <div class="form-group" style="margin:0;">
+                <label>Subject Name</label>
+                <input type="text" id="t_subject" placeholder="e.g. DBMS, CN Lab">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Day of Week</label>
+                <select id="t_day" required>
+                    {% for d in ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Room Number</label>
+                <input type="text" id="t_room" placeholder="Optional">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Start Time</label>
+                <input type="time" id="t_start" required>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>End Time</label>
+                <input type="time" id="t_end" required>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Class Name (fallback)</label>
+                <input type="text" id="t_class_name" placeholder="e.g. 6EK1 (auto-filled)">
+            </div>
         </div>
-        <div class="form-group" style="margin: 0;">
-            <label>Day of Week</label>
-            <select id="t_day" required>
-                <option value="Monday">Monday</option>
-                <option value="Tuesday">Tuesday</option>
-                <option value="Wednesday">Wednesday</option>
-                <option value="Thursday">Thursday</option>
-                <option value="Friday">Friday</option>
-                <option value="Saturday">Saturday</option>
-                <option value="Sunday">Sunday</option>
-            </select>
-        </div>
-        <div class="form-group" style="margin: 0;">
-            <label>Start Time (HH:MM)</label>
-            <input type="time" id="t_start" required>
-        </div>
-        <div class="form-group" style="margin: 0;">
-            <label>End Time (HH:MM)</label>
-            <input type="time" id="t_end" required>
-        </div>
-        <div class="form-group" style="margin: 0;">
-            <label>Room Number</label>
-            <input type="text" id="t_room" placeholder="Optional">
-        </div>
-        <div style="grid-column: span 3; margin-top: 1rem;">
-            <button type="submit" class="btn btn-primary" style="background: var(--accent-gold);">Add Entry</button>
-        </div>
+
+        <button type="submit" class="btn btn-primary" style="background:var(--accent-gold);">Add Entry</button>
     </form>
 </div>
 
 <h3>Current Timetables</h3>
 <div class="table-container">
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Faculty</th>
-                <th>Class</th>
-                <th>Day</th>
-                <th>Time Window</th>
-                <th>Room</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for t in timetables %}
-            <tr>
-                <td>{{ t.id }}</td>
-                <td>{{ t.faculty_name }}</td>
-                <td>{{ t.class_name }}</td>
-                <td>{{ t.day }}</td>
-                <td>{{ t.start }} - {{ t.end }}</td>
-                <td>{{ t.room or 'N/A' }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No timetables created yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<table>
+    <thead>
+        <tr>
+            <th>Faculty</th><th>Class</th><th>Batch</th><th>Subject</th>
+            <th>Day</th><th>Time Window</th><th>Room</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in timetables %}
+        <tr id="ttrow-{{ t.id }}">
+            <td>{{ t.faculty_name }}</td>
+            <td>{{ t.class_name }}</td>
+            <td>{{ t.batch or '—' }}</td>
+            <td>{{ t.subject or '—' }}</td>
+            <td>{{ t.day }}</td>
+            <td>{{ t.start }} – {{ t.end }}</td>
+            <td>{{ t.room or 'N/A' }}</td>
+            <td>
+                <button style="background:#da3633;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:0.78rem;cursor:pointer;"
+                    onclick="deleteTT({{ t.id }})">Del</button>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No timetables yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
 </div>
 
 <script>
+async function loadTTClasses(semId) {
+    const sel = document.getElementById('t_class_id');
+    sel.innerHTML = '<option value="">Select…</option>';
+    document.getElementById('t_batch_id').innerHTML = '<option value="">— Whole Class —</option>';
+    if (!semId) return;
+    const r = await fetch('/api/admin/classes', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({semester_id:parseInt(semId)})});
+    const d = await r.json();
+    d.classes.forEach(c => {
+        const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o);
+    });
+}
+
+async function loadTTBatches(classId) {
+    const sel = document.getElementById('t_batch_id');
+    sel.innerHTML = '<option value="">— Whole Class —</option>';
+    // Auto-fill class name
+    const classText = document.getElementById('t_class_id').selectedOptions[0]?.text || '';
+    document.getElementById('t_class_name').value = classText;
+    if (!classId) return;
+    const r = await fetch('/api/admin/batches', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({class_id:parseInt(classId)})});
+    const d = await r.json();
+    d.batches.forEach(b => {
+        const o=document.createElement('option'); o.value=b.id; o.textContent='Batch '+b.name; sel.appendChild(o);
+    });
+}
+
 document.getElementById('ttForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button');
     btn.disabled = true;
-    
+    const classId  = document.getElementById('t_class_id').value;
+    const batchId  = document.getElementById('t_batch_id').value;
     const body = {
-        faculty_id: document.getElementById('t_faculty').value,
-        class_name: document.getElementById('t_class').value,
-        day: document.getElementById('t_day').value,
-        start_time: document.getElementById('t_start').value,
-        end_time: document.getElementById('t_end').value,
-        room: document.getElementById('t_room').value
+        faculty_id:   document.getElementById('t_faculty').value,
+        class_name:   document.getElementById('t_class_name').value || document.getElementById('t_class_id').selectedOptions[0]?.text || 'Unknown',
+        class_id:     classId ? parseInt(classId) : null,
+        batch_id:     batchId ? parseInt(batchId) : null,
+        subject_name: document.getElementById('t_subject').value || null,
+        day:          document.getElementById('t_day').value,
+        start_time:   document.getElementById('t_start').value,
+        end_time:     document.getElementById('t_end').value,
+        room:         document.getElementById('t_room').value || null,
     };
-    
     try {
-        const res = await fetch('{{ url_for("api_add_timetable") }}', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
+        const res  = await fetch('{{ url_for("api_add_timetable") }}', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
         });
         const data = await res.json();
-        
-        const alertEl = document.getElementById('tt-alert');
-        alertEl.style.display = 'block';
-        alertEl.querySelector('.alert-msg').textContent = data.message;
-        alertEl.className = data.success ? 'alert alert-success' : 'alert alert-error';
-        
-        if (data.success) {
-            setTimeout(() => window.location.reload(), 1000);
-        }
-    } catch (err) {
-        console.error(err);
-    } finally {
-        btn.disabled = false;
-    }
+        const al = document.getElementById('tt-alert');
+        al.style.display = 'block';
+        al.querySelector('.alert-msg').textContent = data.message;
+        al.className = data.success ? 'alert alert-success' : 'alert alert-error';
+        if (data.success) setTimeout(() => window.location.reload(), 1000);
+    } catch(err) { console.error(err); }
+    finally { btn.disabled = false; }
 });
+
+async function deleteTT(id) {
+    if (!confirm('Delete this timetable entry?')) return;
+    const r = await fetch('/api/admin/timetable/delete', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})
+    });
+    const d = await r.json();
+    if (d.success) document.getElementById('ttrow-'+id).remove();
+    else alert(d.message);
+}
 </script>
 {% endblock %}

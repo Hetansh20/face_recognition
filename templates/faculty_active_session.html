@@ -176,6 +176,26 @@
                 <h3 style="margin-bottom:0.3rem;">✅ Review Attendance</h3>
                 <p id="reviewSummary" style="color:var(--text-muted); font-size:0.88rem; margin-bottom:0.5rem;"></p>
 
+                <!-- Head count stats bar -->
+                <div id="headCountBar" style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+                    <div style="background:#21262d; border:1px solid var(--border-color); border-radius:8px; padding:0.5rem 1rem; min-width:110px; text-align:center;">
+                        <div style="font-size:1.4rem; font-weight:700; color:var(--accent-blue);" id="hcTotal">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Faces Detected</div>
+                    </div>
+                    <div style="background:#21262d; border:1px solid var(--border-color); border-radius:8px; padding:0.5rem 1rem; min-width:110px; text-align:center;">
+                        <div style="font-size:1.4rem; font-weight:700; color:#2ea043;" id="hcRecognized">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Recognized</div>
+                    </div>
+                    <div style="background:#21262d; border:1px solid var(--border-color); border-radius:8px; padding:0.5rem 1rem; min-width:110px; text-align:center;">
+                        <div style="font-size:1.4rem; font-weight:700; color:var(--accent-gold);" id="hcUnknown">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Unknown Faces</div>
+                    </div>
+                    <div style="background:#21262d; border:1px solid var(--border-color); border-radius:8px; padding:0.5rem 1rem; min-width:110px; text-align:center;">
+                        <div style="font-size:1.4rem; font-weight:700; color:var(--accent-red);" id="hcAbsent">—</div>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">Marked Absent</div>
+                    </div>
+                </div>
+
                 <!-- Annotated photo thumbnails -->
                 <div class="ann-carousel" id="annCarousel"></div>
 
@@ -338,6 +358,15 @@
 
         document.getElementById('reviewSummary').textContent =
             `${data.photos_processed} photo(s) processed · ${data.present.length} recognized · ${data.absent.length} not detected`;
+
+        // Head count stat bar
+        const totalFaces = data.total_faces || 0;
+        const recognized = data.present ? data.present.length : 0;
+        const unknown    = totalFaces - recognized;
+        document.getElementById('hcTotal').textContent      = totalFaces;
+        document.getElementById('hcRecognized').textContent = recognized;
+        document.getElementById('hcUnknown').textContent    = Math.max(0, unknown);
+        document.getElementById('hcAbsent').textContent     = data.absent ? data.absent.length : 0;
 
         // Annotated image carousel
         const carousel = document.getElementById('annCarousel');

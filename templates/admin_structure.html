@@ -1,0 +1,189 @@
+{% extends "admin_base.html" %}
+{% block title %}College Structure{% endblock %}
+{% block content %}
+<style>
+.struct-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+.struct-card { background:#161b22; border:1px solid var(--border-color); border-radius:10px; padding:1.5rem; }
+.struct-card h3 { font-size:1rem; margin-bottom:1rem; color:var(--accent-blue); }
+.form-row { display:flex; gap:0.5rem; margin-bottom:0.75rem; }
+.form-row input, .form-row select { flex:1; }
+.chip-list { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.75rem; }
+.chip {
+    display:inline-flex; align-items:center; gap:0.4rem;
+    background:#21262d; border:1px solid var(--border-color);
+    padding:3px 10px; border-radius:20px; font-size:0.82rem;
+}
+.chip button { background:none; border:none; color:#da3633; cursor:pointer; font-size:14px; line-height:1; padding:0; }
+.cascade-select { display:flex; gap:0.5rem; margin-bottom:0.75rem; }
+</style>
+
+<div style="margin-top:1.5rem;">
+    <h2>🏫 College Structure</h2>
+    <p style="color:var(--text-muted);">Set up Semesters → Classes → Batches. Once created, assign students and timetables to them.</p>
+</div>
+
+<div class="struct-grid">
+
+    <!-- SEMESTERS -->
+    <div class="struct-card">
+        <h3>📚 Semesters</h3>
+        <div class="form-row">
+            <input id="semNum" type="number" min="1" max="8" placeholder="No. (1–8)">
+            <input id="semLabel" type="text" placeholder='Label e.g. "Sem 6"'>
+        </div>
+        <button class="btn btn-primary" style="width:100%;font-size:0.85rem;" onclick="addSemester()">+ Add Semester</button>
+        <p id="semMsg" style="font-size:0.8rem;margin-top:0.4rem;"></p>
+        <div class="chip-list" id="semChips">
+            {% for s in semesters %}
+            <span class="chip">
+                Sem {{ s[1] }} — {{ s[2] }}
+                <button onclick="deleteSemester({{ s[0] }}, this)" title="Delete">✕</button>
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- CLASSES -->
+    <div class="struct-card">
+        <h3>🏷️ Classes</h3>
+        <div class="form-row">
+            <select id="classSem" onchange="loadClasses(this.value)">
+                <option value="">Select Semester</option>
+                {% for s in semesters %}
+                <option value="{{ s[0] }}">Sem {{ s[1] }} — {{ s[2] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <input id="className" type="text" placeholder='Name e.g. "6EK1"'>
+            <input id="classSection" type="text" placeholder='Section e.g. "EK"' style="max-width:100px;">
+        </div>
+        <button class="btn btn-primary" style="width:100%;font-size:0.85rem;" onclick="addClass()">+ Add Class</button>
+        <p id="classMsg" style="font-size:0.8rem;margin-top:0.4rem;"></p>
+        <div class="chip-list" id="classChips"></div>
+    </div>
+
+    <!-- BATCHES -->
+    <div class="struct-card">
+        <h3>👥 Batches</h3>
+        <div class="cascade-select">
+            <select id="batchSem" onchange="loadClassesForBatch(this.value)" style="flex:1;">
+                <option value="">Semester</option>
+                {% for s in semesters %}
+                <option value="{{ s[0] }}">Sem {{ s[1] }}</option>
+                {% endfor %}
+            </select>
+            <select id="batchClass" onchange="loadBatches(this.value)" style="flex:1;">
+                <option value="">Class</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <input id="batchName" type="text" placeholder='Batch e.g. "A", "B", "Lab1"'>
+        </div>
+        <button class="btn btn-primary" style="width:100%;font-size:0.85rem;" onclick="addBatch()">+ Add Batch</button>
+        <p id="batchMsg" style="font-size:0.8rem;margin-top:0.4rem;"></p>
+        <div class="chip-list" id="batchChips"></div>
+    </div>
+
+</div>
+
+<script>
+// ── Semesters ────────────────────────────────────────────────
+async function addSemester() {
+    const num   = document.getElementById('semNum').value;
+    const label = document.getElementById('semLabel').value.trim();
+    if (!num || !label) return setMsg('semMsg', 'Fill both fields.', 'red');
+    const r = await post('/api/admin/semester/add', { number: parseInt(num), label });
+    setMsg('semMsg', r.message, r.success ? 'green' : 'red');
+    if (r.success) {
+        appendChip('semChips', `Sem ${num} — ${label}`, () => deleteSemester(r.id));
+        document.getElementById('semNum').value = '';
+        document.getElementById('semLabel').value = '';
+    }
+}
+async function deleteSemester(id, btn) {
+    if (!confirm('Delete semester and all its classes/batches?')) return;
+    const r = await post('/api/admin/semester/delete', { id });
+    if (r.success && btn) btn.closest('.chip').remove();
+}
+
+// ── Classes ──────────────────────────────────────────────────
+async function loadClasses(semId) {
+    if (!semId) return;
+    const r = await post('/api/admin/classes', { semester_id: parseInt(semId) });
+    const box = document.getElementById('classChips');
+    box.innerHTML = r.classes.map(c =>
+        `<span class="chip">${c.name}
+          <button onclick="deleteClass(${c.id}, this)">✕</button>
+        </span>`
+    ).join('');
+}
+async function addClass() {
+    const semId   = document.getElementById('classSem').value;
+    const name    = document.getElementById('className').value.trim();
+    const section = document.getElementById('classSection').value.trim();
+    if (!semId || !name) return setMsg('classMsg', 'Select semester and enter class name.', 'red');
+    const r = await post('/api/admin/class/add', { semester_id: parseInt(semId), name, section });
+    setMsg('classMsg', r.message, r.success ? 'green' : 'red');
+    if (r.success) { loadClasses(semId); document.getElementById('className').value = ''; }
+}
+async function deleteClass(id, btn) {
+    if (!confirm('Delete class?')) return;
+    const r = await post('/api/admin/class/delete', { id });
+    if (r.success && btn) btn.closest('.chip').remove();
+}
+
+// ── Batches ──────────────────────────────────────────────────
+async function loadClassesForBatch(semId) {
+    const sel = document.getElementById('batchClass');
+    sel.innerHTML = '<option value="">Class</option>';
+    if (!semId) return;
+    const r = await post('/api/admin/classes', { semester_id: parseInt(semId) });
+    r.classes.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.id; o.textContent = c.name; sel.appendChild(o);
+    });
+}
+async function loadBatches(classId) {
+    if (!classId) return;
+    const r = await post('/api/admin/batches', { class_id: parseInt(classId) });
+    const box = document.getElementById('batchChips');
+    box.innerHTML = r.batches.map(b =>
+        `<span class="chip">Batch ${b.name}
+          <button onclick="deleteBatch(${b.id}, this)">✕</button>
+        </span>`
+    ).join('');
+}
+async function addBatch() {
+    const classId = document.getElementById('batchClass').value;
+    const name    = document.getElementById('batchName').value.trim();
+    if (!classId || !name) return setMsg('batchMsg', 'Select class and enter batch name.', 'red');
+    const r = await post('/api/admin/batch/add', { class_id: parseInt(classId), name });
+    setMsg('batchMsg', r.message, r.success ? 'green' : 'red');
+    if (r.success) { loadBatches(classId); document.getElementById('batchName').value = ''; }
+}
+async function deleteBatch(id, btn) {
+    if (!confirm('Delete batch?')) return;
+    const r = await post('/api/admin/batch/delete', { id });
+    if (r.success && btn) btn.closest('.chip').remove();
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function setMsg(id, msg, color) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.color = color === 'green' ? '#2ea043' : '#da3633';
+}
+async function post(url, body) {
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    return res.json();
+}
+function appendChip(containerId, label, onDelete) {
+    const box  = document.getElementById(containerId);
+    const span = document.createElement('span');
+    span.className = 'chip';
+    span.innerHTML = `${label} <button onclick="(${onDelete})()">✕</button>`;
+    box.appendChild(span);
+}
+</script>
+{% endblock %}

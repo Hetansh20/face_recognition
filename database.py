@@ -4,331 +4,546 @@ from datetime import datetime
 import bcrypt
 import json
 
-# Database file path
-DB_PATH = "attendance_system.db"
+# Database file path — absolute so it works from any working directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH  = os.path.join(BASE_DIR, "attendance_system.db")
+
 
 class Database:
     """Database management class for the attendance system"""
-    
+
     def __init__(self):
-        self.conn = None
+        self.conn   = None
         self.cursor = None
         self.init_db()
-    
+
+    # ──────────────────────── Connection ─────────────────────────────
+
     def connect(self):
-        """Connect to the database"""
-        self.conn = sqlite3.connect(DB_PATH)
+        self.conn   = sqlite3.connect(DB_PATH)
         self.cursor = self.conn.cursor()
-    
+
     def disconnect(self):
-        """Disconnect from the database"""
         if self.conn:
             self.conn.close()
-    
+            self.conn   = None
+            self.cursor = None
+
+    # ──────────────────────── Schema Init ────────────────────────────
+
     def init_db(self):
-        """Initialize database with all required tables"""
+        """Initialize database — creates tables if missing, migrates columns."""
         self.connect()
-        
-        # Create Faculties table
+
+        # ── Core tables ──────────────────────────────────────────────
+
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS faculties (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                department TEXT NOT NULL,
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                name          TEXT NOT NULL,
+                email         TEXT UNIQUE NOT NULL,
+                department    TEXT NOT NULL,
                 passcode_hash TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT 1
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active     BOOLEAN DEFAULT 1
             )
         ''')
-        
-        # Create Students table
+
+        # Semesters (1–8)
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS semesters (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                number     INTEGER UNIQUE NOT NULL,
+                label      TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Classes e.g. 6EK1, 6EK2
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS classes (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                semester_id INTEGER NOT NULL,
+                name        TEXT NOT NULL,
+                section     TEXT,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (semester_id) REFERENCES semesters(id),
+                UNIQUE(semester_id, name)
+            )
+        ''')
+
+        # Batches A / B / C / Whole within a class
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS batches (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                class_id   INTEGER NOT NULL,
+                name       TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (class_id) REFERENCES classes(id),
+                UNIQUE(class_id, name)
+            )
+        ''')
+
+        # Students — extended with class/batch/roll/phone
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS students (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                department TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT 1
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id  TEXT UNIQUE NOT NULL,
+                name        TEXT NOT NULL,
+                email       TEXT UNIQUE NOT NULL,
+                department  TEXT NOT NULL,
+                class_id    INTEGER,
+                batch_id    INTEGER,
+                roll_number TEXT,
+                phone       TEXT,
+                face_pid    TEXT,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active   BOOLEAN DEFAULT 1,
+                FOREIGN KEY (class_id)  REFERENCES classes(id),
+                FOREIGN KEY (batch_id)  REFERENCES batches(id)
             )
         ''')
-        
-        # Create Timetables table
+
+        # Timetables — extended with class/batch/subject
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS timetables (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                faculty_id INTEGER NOT NULL,
-                class_name TEXT NOT NULL,
-                day_of_week TEXT NOT NULL,
-                start_time TEXT NOT NULL,
-                end_time TEXT NOT NULL,
-                room_number TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (faculty_id) REFERENCES faculties(id)
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                faculty_id    INTEGER NOT NULL,
+                class_name    TEXT NOT NULL,
+                class_id      INTEGER,
+                batch_id      INTEGER,
+                subject_name  TEXT,
+                day_of_week   TEXT NOT NULL,
+                start_time    TEXT NOT NULL,
+                end_time      TEXT NOT NULL,
+                room_number   TEXT,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+                FOREIGN KEY (class_id)   REFERENCES classes(id),
+                FOREIGN KEY (batch_id)   REFERENCES batches(id)
             )
         ''')
-        
-        # Create Facial Encodings table
+
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS facial_encodings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id INTEGER NOT NULL,
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id   INTEGER NOT NULL,
                 encoding_data TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (student_id) REFERENCES students(id)
             )
         ''')
-        
-        # Create Attendance table
+
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS attendance (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id INTEGER NOT NULL,
-                timetable_id INTEGER NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status TEXT DEFAULT 'present',
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id       INTEGER NOT NULL,
+                timetable_id     INTEGER NOT NULL,
+                timestamp        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status           TEXT DEFAULT 'present',
                 confidence_score REAL,
-                FOREIGN KEY (student_id) REFERENCES students(id),
+                FOREIGN KEY (student_id)   REFERENCES students(id),
                 FOREIGN KEY (timetable_id) REFERENCES timetables(id)
             )
         ''')
-        
-        # Create Attendance Sessions table
+
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS attendance_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                faculty_id INTEGER NOT NULL,
-                timetable_id INTEGER NOT NULL,
-                session_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                session_end TIMESTAMP,
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                faculty_id     INTEGER NOT NULL,
+                timetable_id   INTEGER NOT NULL,
+                session_start  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                session_end    TIMESTAMP,
                 total_students INTEGER,
-                present_count INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'active',
-                FOREIGN KEY (faculty_id) REFERENCES faculties(id),
+                present_count  INTEGER DEFAULT 0,
+                status         TEXT DEFAULT 'active',
+                FOREIGN KEY (faculty_id)   REFERENCES faculties(id),
                 FOREIGN KEY (timetable_id) REFERENCES timetables(id)
             )
         ''')
-        
+
+        # ── Safe migrations for old columns ──────────────────────────
+        self._add_column_if_missing("students",   "class_id",    "INTEGER")
+        self._add_column_if_missing("students",   "batch_id",    "INTEGER")
+        self._add_column_if_missing("students",   "roll_number", "TEXT")
+        self._add_column_if_missing("students",   "phone",       "TEXT")
+        self._add_column_if_missing("students",   "face_pid",    "TEXT")
+        self._add_column_if_missing("timetables", "class_id",    "INTEGER")
+        self._add_column_if_missing("timetables", "batch_id",    "INTEGER")
+        self._add_column_if_missing("timetables", "subject_name","TEXT")
+
         self.conn.commit()
         self.disconnect()
-    
+
+    def _add_column_if_missing(self, table, column, col_type):
+        """ALTER TABLE … ADD COLUMN safely (SQLite-safe)."""
+        try:
+            self.cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+    # ──────────────────────── Utilities ──────────────────────────────
+
     def hash_passcode(self, passcode):
-        """Hash a passcode using bcrypt"""
         return bcrypt.hashpw(passcode.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    
+
     def verify_passcode(self, passcode, passcode_hash):
-        """Verify a passcode against its hash"""
         return bcrypt.checkpw(passcode.encode('utf-8'), passcode_hash.encode('utf-8'))
-    
-    # Faculty operations
+
+    # ──────────────────────── Faculty ────────────────────────────────
+
     def add_faculty(self, name, email, department, passcode):
-        """Add a new faculty member"""
         self.connect()
         try:
             passcode_hash = self.hash_passcode(passcode)
-            self.cursor.execute('''
-                INSERT INTO faculties (name, email, department, passcode_hash)
-                VALUES (?, ?, ?, ?)
-            ''', (name, email, department, passcode_hash))
+            self.cursor.execute(
+                'INSERT INTO faculties (name, email, department, passcode_hash) VALUES (?, ?, ?, ?)',
+                (name, email, department, passcode_hash)
+            )
             self.conn.commit()
-            faculty_id = self.cursor.lastrowid
+            fid = self.cursor.lastrowid
             self.disconnect()
-            return faculty_id
+            return fid
         except sqlite3.IntegrityError as e:
             self.disconnect()
             raise Exception(f"Faculty with this email already exists: {e}")
-    
+
     def get_faculty_by_email(self, email):
-        """Get faculty by email"""
         self.connect()
         self.cursor.execute('SELECT * FROM faculties WHERE email = ?', (email,))
-        result = self.cursor.fetchone()
-        self.disconnect()
-        return result
-    
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
     def get_faculty_by_id(self, faculty_id):
-        """Get faculty by ID"""
         self.connect()
         self.cursor.execute('SELECT * FROM faculties WHERE id = ?', (faculty_id,))
-        result = self.cursor.fetchone()
-        self.disconnect()
-        return result
-    
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
     def get_all_faculties(self):
-        """Get all active faculties"""
         self.connect()
         self.cursor.execute('SELECT * FROM faculties WHERE is_active = 1')
-        results = self.cursor.fetchall()
-        self.disconnect()
-        return results
-    
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
     def get_faculty_by_passcode(self, passcode):
-        """Find a faculty by checking their passcode against all hashes"""
-        faculties = self.get_all_faculties()
-        for f in faculties:
-            # Hash is at index 4 in faculties table
+        for f in self.get_all_faculties():
             if self.verify_passcode(passcode, f[4]):
                 return f
         return None
-    
-    # Student operations
-    def add_student(self, student_id, name, email, department):
-        """Add a new student"""
+
+    def update_faculty(self, faculty_id, name, email, department):
+        self.connect()
+        self.cursor.execute(
+            'UPDATE faculties SET name=?, email=?, department=? WHERE id=?',
+            (name, email, department, faculty_id)
+        )
+        self.conn.commit(); self.disconnect()
+
+    def delete_faculty(self, faculty_id):
+        self.connect()
+        self.cursor.execute('UPDATE faculties SET is_active=0 WHERE id=?', (faculty_id,))
+        self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Semesters ──────────────────────────────
+
+    def add_semester(self, number, label):
+        self.connect()
+        try:
+            self.cursor.execute(
+                'INSERT INTO semesters (number, label) VALUES (?, ?)', (number, label)
+            )
+            self.conn.commit()
+            sid = self.cursor.lastrowid; self.disconnect(); return sid
+        except sqlite3.IntegrityError:
+            self.disconnect(); raise Exception("Semester already exists.")
+
+    def get_all_semesters(self):
+        self.connect()
+        self.cursor.execute('SELECT * FROM semesters ORDER BY number')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def delete_semester(self, semester_id):
+        self.connect()
+        self.cursor.execute('DELETE FROM semesters WHERE id=?', (semester_id,))
+        self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Classes ────────────────────────────────
+
+    def add_class(self, semester_id, name, section=None):
+        self.connect()
+        try:
+            self.cursor.execute(
+                'INSERT INTO classes (semester_id, name, section) VALUES (?, ?, ?)',
+                (semester_id, name, section)
+            )
+            self.conn.commit()
+            cid = self.cursor.lastrowid; self.disconnect(); return cid
+        except sqlite3.IntegrityError:
+            self.disconnect(); raise Exception("Class already exists in this semester.")
+
+    def get_classes_by_semester(self, semester_id):
+        self.connect()
+        self.cursor.execute('SELECT * FROM classes WHERE semester_id=? ORDER BY name', (semester_id,))
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_all_classes(self):
+        self.connect()
+        self.cursor.execute('''
+            SELECT c.id, c.semester_id, c.name, c.section, s.number, s.label
+            FROM classes c JOIN semesters s ON c.semester_id = s.id
+            ORDER BY s.number, c.name
+        ''')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def delete_class(self, class_id):
+        self.connect()
+        self.cursor.execute('DELETE FROM classes WHERE id=?', (class_id,))
+        self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Batches ────────────────────────────────
+
+    def add_batch(self, class_id, name):
+        self.connect()
+        try:
+            self.cursor.execute(
+                'INSERT INTO batches (class_id, name) VALUES (?, ?)', (class_id, name)
+            )
+            self.conn.commit()
+            bid = self.cursor.lastrowid; self.disconnect(); return bid
+        except sqlite3.IntegrityError:
+            self.disconnect(); raise Exception("Batch already exists in this class.")
+
+    def get_batches_by_class(self, class_id):
+        self.connect()
+        self.cursor.execute('SELECT * FROM batches WHERE class_id=? ORDER BY name', (class_id,))
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_all_batches(self):
+        self.connect()
+        self.cursor.execute('''
+            SELECT b.id, b.class_id, b.name, c.name as class_name, s.number as semester
+            FROM batches b
+            JOIN classes c ON b.class_id = c.id
+            JOIN semesters s ON c.semester_id = s.id
+            ORDER BY s.number, c.name, b.name
+        ''')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def delete_batch(self, batch_id):
+        self.connect()
+        self.cursor.execute('DELETE FROM batches WHERE id=?', (batch_id,))
+        self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Students ───────────────────────────────
+
+    def add_student(self, student_id, name, email, department,
+                    class_id=None, batch_id=None, roll_number=None, phone=None, face_pid=None):
         self.connect()
         try:
             self.cursor.execute('''
-                INSERT INTO students (student_id, name, email, department)
-                VALUES (?, ?, ?, ?)
-            ''', (student_id, name, email, department))
+                INSERT INTO students
+                    (student_id, name, email, department, class_id, batch_id, roll_number, phone, face_pid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (student_id, name, email, department, class_id, batch_id, roll_number, phone, face_pid))
             self.conn.commit()
-            sid = self.cursor.lastrowid
-            self.disconnect()
-            return sid
+            sid = self.cursor.lastrowid; self.disconnect(); return sid
         except sqlite3.IntegrityError as e:
             self.disconnect()
             raise Exception(f"Student with this ID or email already exists: {e}")
-    
-    def get_student_by_id(self, student_id):
-        """Get student by database ID"""
+
+    def update_student(self, student_db_id, name, email, department,
+                       class_id=None, batch_id=None, roll_number=None, phone=None, face_pid=None):
         self.connect()
-        self.cursor.execute('SELECT * FROM students WHERE id = ?', (student_id,))
-        result = self.cursor.fetchone()
-        self.disconnect()
-        return result
-    
+        self.cursor.execute('''
+            UPDATE students
+            SET name=?, email=?, department=?, class_id=?, batch_id=?,
+                roll_number=?, phone=?, face_pid=?
+            WHERE id=?
+        ''', (name, email, department, class_id, batch_id, roll_number, phone, face_pid, student_db_id))
+        self.conn.commit(); self.disconnect()
+
+    def delete_student(self, student_db_id):
+        self.connect()
+        self.cursor.execute('UPDATE students SET is_active=0 WHERE id=?', (student_db_id,))
+        self.conn.commit(); self.disconnect()
+
+    def get_student_by_id(self, student_db_id):
+        self.connect()
+        self.cursor.execute('SELECT * FROM students WHERE id=?', (student_db_id,))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
     def get_student_by_student_id(self, student_id):
-        """Get student by student ID"""
         self.connect()
-        self.cursor.execute('SELECT * FROM students WHERE student_id = ?', (student_id,))
-        result = self.cursor.fetchone()
-        self.disconnect()
-        return result
-    
+        self.cursor.execute('SELECT * FROM students WHERE student_id=?', (student_id,))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
     def get_all_students(self):
-        """Get all active students"""
         self.connect()
-        self.cursor.execute('SELECT * FROM students WHERE is_active = 1')
-        results = self.cursor.fetchall()
-        self.disconnect()
-        return results
-    
-    # Timetable operations
-    def add_timetable(self, faculty_id, class_name, day_of_week, start_time, end_time, room_number=None):
-        """Add a new timetable entry"""
+        self.cursor.execute('SELECT * FROM students WHERE is_active=1 ORDER BY name')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_students_by_class(self, class_id):
+        """All active students in a class (all batches)."""
+        self.connect()
+        self.cursor.execute(
+            'SELECT * FROM students WHERE class_id=? AND is_active=1 ORDER BY name',
+            (class_id,)
+        )
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_students_by_batch(self, batch_id):
+        """All active students in a specific batch."""
+        self.connect()
+        self.cursor.execute(
+            'SELECT * FROM students WHERE batch_id=? AND is_active=1 ORDER BY name',
+            (batch_id,)
+        )
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def search_students(self, query):
+        self.connect()
+        q = f"%{query}%"
+        self.cursor.execute('''
+            SELECT * FROM students
+            WHERE is_active=1
+              AND (name LIKE ? OR student_id LIKE ? OR email LIKE ? OR roll_number LIKE ?)
+            ORDER BY name
+        ''', (q, q, q, q))
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def link_student_face(self, student_db_id, face_pid):
+        """Link a face_database.json person_id to a student record."""
+        self.connect()
+        self.cursor.execute('UPDATE students SET face_pid=? WHERE id=?', (face_pid, student_db_id))
+        self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Timetables ─────────────────────────────
+
+    def add_timetable(self, faculty_id, class_name, day_of_week, start_time, end_time,
+                      room_number=None, class_id=None, batch_id=None, subject_name=None):
         self.connect()
         self.cursor.execute('''
-            INSERT INTO timetables (faculty_id, class_name, day_of_week, start_time, end_time, room_number)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (faculty_id, class_name, day_of_week, start_time, end_time, room_number))
+            INSERT INTO timetables
+                (faculty_id, class_name, class_id, batch_id, subject_name,
+                 day_of_week, start_time, end_time, room_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (faculty_id, class_name, class_id, batch_id, subject_name,
+              day_of_week, start_time, end_time, room_number))
         self.conn.commit()
-        timetable_id = self.cursor.lastrowid
-        self.disconnect()
-        return timetable_id
-    
+        tid = self.cursor.lastrowid; self.disconnect(); return tid
+
     def get_timetable_by_id(self, timetable_id):
-        """Get timetable by ID"""
         self.connect()
-        self.cursor.execute('SELECT * FROM timetables WHERE id = ?', (timetable_id,))
-        result = self.cursor.fetchone()
-        self.disconnect()
-        return result
-    
+        self.cursor.execute('SELECT * FROM timetables WHERE id=?', (timetable_id,))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
     def get_faculty_timetables(self, faculty_id):
-        """Get all timetables for a faculty"""
         self.connect()
-        self.cursor.execute('SELECT * FROM timetables WHERE faculty_id = ?', (faculty_id,))
-        results = self.cursor.fetchall()
-        self.disconnect()
-        return results
-    
-    # Facial encoding operations
-    def add_facial_encoding(self, student_id, encoding_data):
-        """Add facial encoding for a student"""
+        self.cursor.execute('SELECT * FROM timetables WHERE faculty_id=?', (faculty_id,))
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_all_timetables(self):
         self.connect()
-        encoding_json = json.dumps(encoding_data.tolist()) if hasattr(encoding_data, 'tolist') else json.dumps(encoding_data)
         self.cursor.execute('''
-            INSERT INTO facial_encodings (student_id, encoding_data)
-            VALUES (?, ?)
-        ''', (student_id, encoding_json))
-        self.conn.commit()
-        self.disconnect()
-    
-    def get_student_encodings(self, student_id):
-        """Get all facial encodings for a student"""
+            SELECT t.*, f.name as faculty_name
+            FROM timetables t
+            JOIN faculties f ON t.faculty_id = f.id
+            ORDER BY t.day_of_week, t.start_time
+        ''')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def delete_timetable(self, timetable_id):
         self.connect()
-        self.cursor.execute('SELECT * FROM facial_encodings WHERE student_id = ?', (student_id,))
-        results = self.cursor.fetchall()
-        self.disconnect()
-        return results
-    
+        self.cursor.execute('DELETE FROM timetables WHERE id=?', (timetable_id,))
+        self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Face Map Queries ───────────────────────
+
+    def get_students_without_face(self):
+        """Students in DB but face_pid is NULL or not set."""
+        self.connect()
+        self.cursor.execute('''
+            SELECT * FROM students
+            WHERE is_active=1 AND (face_pid IS NULL OR face_pid = '')
+            ORDER BY name
+        ''')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_face_pid_map(self):
+        """Return dict: face_pid → student row for quick lookup."""
+        self.connect()
+        self.cursor.execute(
+            "SELECT * FROM students WHERE is_active=1 AND face_pid IS NOT NULL AND face_pid != ''"
+        )
+        rows = self.cursor.fetchall(); self.disconnect()
+        return {row[9]: row for row in rows}   # index 9 = face_pid column
+
+    # ──────────────────────── Facial Encodings ───────────────────────
+
+    def add_facial_encoding(self, student_id, encoding_data):
+        self.connect()
+        enc = json.dumps(encoding_data.tolist()) if hasattr(encoding_data, 'tolist') else json.dumps(encoding_data)
+        self.cursor.execute(
+            'INSERT INTO facial_encodings (student_id, encoding_data) VALUES (?, ?)', (student_id, enc)
+        )
+        self.conn.commit(); self.disconnect()
+
+    def get_student_encodings(self, student_id):
+        self.connect()
+        self.cursor.execute('SELECT * FROM facial_encodings WHERE student_id=?', (student_id,))
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
     def get_all_encodings(self):
-        """Get all facial encodings"""
         self.connect()
         self.cursor.execute('SELECT * FROM facial_encodings')
-        results = self.cursor.fetchall()
-        self.disconnect()
-        return results
-    
-    # Attendance operations
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    # ──────────────────────── Attendance ─────────────────────────────
+
     def mark_attendance(self, student_id, timetable_id, confidence_score=None):
-        """Mark attendance for a student"""
         self.connect()
         self.cursor.execute('''
             INSERT INTO attendance (student_id, timetable_id, status, confidence_score)
             VALUES (?, ?, 'present', ?)
         ''', (student_id, timetable_id, confidence_score))
-        self.conn.commit()
-        self.disconnect()
-    
+        self.conn.commit(); self.disconnect()
+
     def get_attendance_by_session(self, timetable_id):
-        """Get all attendance records for a timetable"""
         self.connect()
         self.cursor.execute('''
-            SELECT a.id, a.student_id, a.timetable_id, a.timestamp, a.status, a.confidence_score, 
-                   s.student_id as student_code, s.name, s.email FROM attendance a
+            SELECT a.id, a.student_id, a.timetable_id, a.timestamp, a.status, a.confidence_score,
+                   s.student_id as student_code, s.name, s.email
+            FROM attendance a
             JOIN students s ON a.student_id = s.id
             WHERE a.timetable_id = ?
             ORDER BY a.timestamp DESC
         ''', (timetable_id,))
-        results = self.cursor.fetchall()
-        self.disconnect()
-        return results
-    
-    # Attendance session operations
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    # ──────────────────────── Sessions ───────────────────────────────
+
     def create_session(self, faculty_id, timetable_id, total_students):
-        """Create a new attendance session"""
         self.connect()
         self.cursor.execute('''
             INSERT INTO attendance_sessions (faculty_id, timetable_id, total_students)
             VALUES (?, ?, ?)
         ''', (faculty_id, timetable_id, total_students))
         self.conn.commit()
-        session_id = self.cursor.lastrowid
-        self.disconnect()
-        return session_id
-    
+        sid = self.cursor.lastrowid; self.disconnect(); return sid
+
     def end_session(self, session_id, present_count):
-        """End an attendance session"""
         self.connect()
         self.cursor.execute('''
             UPDATE attendance_sessions
-            SET session_end = CURRENT_TIMESTAMP, status = 'completed', present_count = ?
-            WHERE id = ?
+            SET session_end=CURRENT_TIMESTAMP, status='completed', present_count=?
+            WHERE id=?
         ''', (present_count, session_id))
-        self.conn.commit()
-        self.disconnect()
-    
-    def get_session(self, session_id):
-        """Get session details"""
-        self.connect()
-        self.cursor.execute('SELECT * FROM attendance_sessions WHERE id = ?', (session_id,))
-        result = self.cursor.fetchone()
-        self.disconnect()
-        return result
+        self.conn.commit(); self.disconnect()
 
-# Initialize database on import
+    def get_session(self, session_id):
+        self.connect()
+        self.cursor.execute('SELECT * FROM attendance_sessions WHERE id=?', (session_id,))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
+
 if __name__ == "__main__":
     db = Database()
     print("Database initialized successfully!")

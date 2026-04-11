@@ -74,21 +74,29 @@ def admin_setup():
 @admin_required
 def admin_timetables():
     db = get_db()
-    faculties = db.get_all_faculties() or []
+    faculties  = db.get_all_faculties() or []
+    semesters  = db.get_all_semesters()
+    all_batches = db.get_all_batches()
+    batch_map  = {b[0]: b[2] for b in all_batches}
+    f_map      = {f[0]: f[1] for f in faculties}
     timetables = []
-    f_map = {f[0]: f[1] for f in faculties}
-    for f in faculties:
-        for t in (db.get_faculty_timetables(f[0]) or []):
-            timetables.append({
-                "id": t[0],
-                "faculty_name": f_map.get(t[1], "Unknown"),
-                "class_name": t[2],
-                "day": t[3],
-                "start": t[4],
-                "end": t[5],
-                "room": t[6]
-            })
-    return render_template("admin_timetables.html", faculties=faculties, timetables=timetables)
+    for row in (db.get_all_timetables() or []):
+        # row: id, faculty_id, class_name, class_id, batch_id, subject_name, day_of_week, start_time, end_time, room_number, created_at, faculty_name
+        timetables.append({
+            "id":           row[0],
+            "faculty_name": row[-1],
+            "class_name":   row[2],
+            "subject":      row[5],
+            "batch":        batch_map.get(row[4], '') if row[4] else '',
+            "day":          row[6],
+            "start":        row[7],
+            "end":          row[8],
+            "room":         row[9],
+        })
+    return render_template(
+        "admin_timetables.html",
+        faculties=faculties, timetables=timetables, semesters=semesters
+    )
 
 @app.route("/admin/reports")
 @admin_required
@@ -123,11 +131,21 @@ def api_add_timetable():
     try:
         tid, msg = timetable_manager.add_timetable_entry(
             int(data['faculty_id']), data['class_name'], data['day'],
-            data['start_time'], data['end_time'], data.get('room')
+            data['start_time'], data['end_time'], data.get('room'),
+            data.get('class_id'), data.get('batch_id'), data.get('subject_name')
         )
         if tid:
             return jsonify({"success": True, "message": msg})
         return jsonify({"success": False, "message": msg})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/timetable/delete", methods=["POST"])
+@admin_required
+def api_delete_timetable():
+    try:
+        get_db().delete_timetable(request.json['id'])
+        return jsonify({"success": True, "message": "Deleted."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -137,6 +155,169 @@ def api_admin_export():
     try:
         fname, msg = CSVExportService().export_all_attendance()
         return jsonify({"success": bool(fname), "message": msg, "file": fname})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+# ── STRUCTURE: Semesters / Classes / Batches ─────────────────
+
+@app.route("/admin/structure")
+@admin_required
+def admin_structure():
+    db = get_db()
+    semesters = db.get_all_semesters()
+    return render_template("admin_structure.html", semesters=semesters)
+
+@app.route("/api/admin/semester/add", methods=["POST"])
+@admin_required
+def api_add_semester():
+    data = request.json
+    try:
+        sid = get_db().add_semester(data['number'], data['label'])
+        return jsonify({"success": True, "message": "Semester added.", "id": sid})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/semester/delete", methods=["POST"])
+@admin_required
+def api_delete_semester():
+    try:
+        get_db().delete_semester(request.json['id'])
+        return jsonify({"success": True, "message": "Deleted."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/classes", methods=["POST"])
+@admin_required
+def api_get_classes():
+    rows = get_db().get_classes_by_semester(request.json['semester_id'])
+    return jsonify({"classes": [{"id": r[0], "name": r[2], "section": r[3]} for r in rows]})
+
+@app.route("/api/admin/class/add", methods=["POST"])
+@admin_required
+def api_add_class():
+    d = request.json
+    try:
+        cid = get_db().add_class(d['semester_id'], d['name'], d.get('section'))
+        return jsonify({"success": True, "message": "Class added.", "id": cid})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/class/delete", methods=["POST"])
+@admin_required
+def api_delete_class():
+    try:
+        get_db().delete_class(request.json['id'])
+        return jsonify({"success": True, "message": "Deleted."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/batches", methods=["POST"])
+@admin_required
+def api_get_batches():
+    rows = get_db().get_batches_by_class(request.json['class_id'])
+    return jsonify({"batches": [{"id": r[0], "name": r[2]} for r in rows]})
+
+@app.route("/api/admin/batch/add", methods=["POST"])
+@admin_required
+def api_add_batch():
+    d = request.json
+    try:
+        bid = get_db().add_batch(d['class_id'], d['name'])
+        return jsonify({"success": True, "message": "Batch added.", "id": bid})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/batch/delete", methods=["POST"])
+@admin_required
+def api_delete_batch():
+    try:
+        get_db().delete_batch(request.json['id'])
+        return jsonify({"success": True, "message": "Deleted."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+# ── STUDENT Management ───────────────────────────────────────
+
+@app.route("/admin/students")
+@admin_required
+def admin_students():
+    import json as _json
+    db = get_db()
+    students  = db.get_all_students()
+    classes   = db.get_all_classes()
+    semesters = db.get_all_semesters()
+    all_batches = db.get_all_batches()
+    no_face   = db.get_students_without_face()
+    class_map = {c[0]: c[2] for c in classes}   # id -> name
+    batch_map = {b[0]: b[2] for b in all_batches}  # id -> name
+
+    # Faces in face_database.json not linked to any student
+    face_db = {}
+    if os.path.exists(FACE_DB):
+        with open(FACE_DB) as f:
+            face_db = _json.load(f)
+    linked_pids = {s[9] for s in students if s[9]}  # face_pid column
+    unlinked_faces = {pid: info for pid, info in face_db.items() if pid not in linked_pids}
+
+    return render_template(
+        "admin_students.html",
+        students=students,
+        classes=classes,
+        semesters=semesters,
+        all_batches=all_batches,
+        no_face=no_face,
+        class_map=class_map,
+        batch_map=batch_map,
+        unlinked_faces=unlinked_faces,
+        students_json=_json.dumps([list(s) for s in students]),
+        classes_json=_json.dumps([{"id": c[0], "name": c[2]} for c in classes]),
+        batches_json=_json.dumps([{"id": b[0], "name": b[2], "class_id": b[1]} for b in all_batches]),
+    )
+
+@app.route("/api/admin/student/add", methods=["POST"])
+@admin_required
+def api_admin_student_add():
+    d = request.json
+    try:
+        sid = get_db().add_student(
+            d['student_id'], d['name'], d['email'], d.get('department', 'Unassigned'),
+            d.get('class_id'), d.get('batch_id'), d.get('roll_number'), d.get('phone')
+        )
+        return jsonify({"success": True, "message": "Student added!", "id": sid})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/student/update", methods=["POST"])
+@admin_required
+def api_admin_student_update():
+    d = request.json
+    try:
+        get_db().update_student(
+            d['id'], d['name'], d['email'], d.get('department', 'Unassigned'),
+            d.get('class_id'), d.get('batch_id'), d.get('roll_number'), d.get('phone')
+        )
+        return jsonify({"success": True, "message": "Student updated!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/student/delete", methods=["POST"])
+@admin_required
+def api_admin_student_delete():
+    try:
+        get_db().delete_student(request.json['id'])
+        return jsonify({"success": True, "message": "Student deactivated."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/student/link_face", methods=["POST"])
+@admin_required
+def api_admin_link_face():
+    d = request.json
+    try:
+        get_db().link_student_face(d['student_id'], d['face_pid'])
+        return jsonify({"success": True, "message": "Face linked to student!"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
