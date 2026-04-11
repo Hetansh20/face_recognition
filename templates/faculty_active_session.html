@@ -7,135 +7,119 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <style>
         .camera-container {
-            width: 100%;
-            max-width: 1280px;
-            margin: 2rem auto;
-            background: #0d1117;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
+            width: 100%; max-width: 1280px; margin: 2rem auto;
+            background: #0d1117; border-radius: 12px;
+            border: 1px solid var(--border-color); overflow: hidden;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
-        #video-feed {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #000;
-            display: block;
-        }
+        #video-feed { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
         .cam-controls {
-            padding: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-            background: #161b22;
-            border-top: 1px solid var(--border-color);
-            flex-wrap: wrap;
+            padding: 1.5rem; display: flex; justify-content: space-between;
+            align-items: center; gap: 1rem; background: #161b22;
+            border-top: 1px solid var(--border-color); flex-wrap: wrap;
         }
         .class-info h3 { margin-bottom: 0.2rem; }
-        .class-info p { color: var(--text-muted); font-size: 0.9rem; margin: 0; }
+        .class-info p  { color: var(--text-muted); font-size: 0.9rem; margin: 0; }
 
         /* Modals */
         .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.85);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            backdrop-filter: blur(4px);
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.88); display: none;
+            justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(4px);
         }
-        .modal {
-            background: #161b22;
-            padding: 2rem;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            width: 100%;
-            max-width: 440px;
-        }
-        .modal.modal-wide { max-width: 720px; }
-        .modal-buttons { display: flex; gap: 1rem; margin-top: 1.5rem; }
+        .modal { background:#161b22; padding:2rem; border-radius:10px; border:1px solid var(--border-color); width:100%; max-width:440px; }
+        .modal.modal-wide { max-width:780px; max-height:92vh; overflow-y:auto; }
+        .modal-buttons { display:flex; gap:1rem; margin-top:1.5rem; }
 
-        /* Group photo UI */
-        #groupCamWrap {
-            position: relative;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
-            aspect-ratio: 4/3;
-            margin-bottom: 1rem;
+        /* ── Upload zone ──────────────────────────────────────── */
+        .upload-strip { display:flex; gap:0.75rem; margin-bottom:1rem; }
+        .upload-slot {
+            flex:1; aspect-ratio:4/3; border:2px dashed var(--border-color);
+            border-radius:8px; cursor:pointer; overflow:hidden; position:relative;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            color:var(--text-muted); font-size:0.8rem; text-align:center;
+            transition: border-color 0.2s, background 0.2s;
         }
-        #groupCam { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .group-canvas { display: none; }
+        .upload-slot:hover  { border-color:#1f6feb; background:rgba(31,111,235,0.06); }
+        .upload-slot.filled { border-color:#2ea043; border-style:solid; }
+        .upload-slot img    { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+        .slot-remove {
+            position:absolute; top:4px; right:4px; background:rgba(218,54,51,0.9);
+            color:#fff; border:none; border-radius:50%; width:22px; height:22px;
+            font-size:14px; line-height:22px; cursor:pointer; display:none; z-index:2;
+        }
+        .upload-slot.filled .slot-remove { display:block; }
 
-        /* Results */
-        #resultsPane { display: none; margin-top: 1rem; }
-        #annotatedImg { width: 100%; border-radius: 8px; border: 1px solid var(--border-color); }
-        .result-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            margin: 3px;
+        /* ── Review page ──────────────────────────────────────── */
+        #reviewPane { display:none; }
+        .review-cols { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-top:1rem; }
+        .review-col h4 { font-size:0.85rem; text-transform:uppercase; letter-spacing:.06em; margin-bottom:0.6rem; }
+        .student-row {
+            display:flex; align-items:center; gap:0.6rem;
+            padding:0.5rem 0.6rem; border-radius:6px; cursor:pointer;
+            transition:background 0.15s; user-select:none; font-size:0.9rem;
         }
-        .badge-present { background: #1a4731; color: #2ea043; }
-        .badge-unknown { background: #3d2a00; color: #e3b341; }
+        .student-row:hover { background:rgba(255,255,255,0.05); }
+        .student-row input[type=checkbox] { width:16px; height:16px; cursor:pointer; accent-color:#2ea043; }
+        .conf-badge { font-size:0.72rem; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+        /* Annotated image carousel */
+        .ann-carousel { display:flex; gap:0.5rem; margin-top:0.75rem; overflow-x:auto; }
+        .ann-carousel img { width:220px; border-radius:6px; border:1px solid var(--border-color); flex-shrink:0; }
+
+        /* ── Done state ────────────────────────────────────────── */
+        .badge-present { background:#1a4731; color:#2ea043; padding:3px 10px; border-radius:20px; font-size:0.8rem; margin:3px; display:inline-block; }
     </style>
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-brand">📱 Contactless Attendance AI</div>
         <div class="nav-links">
-            <span style="margin-right: 1rem; color: var(--text-muted);">{{ faculty_name }}</span>
-            <a href="{{ url_for('faculty_logout') }}" class="btn btn-outline" style="border-color: #da3633; color: #da3633;">Force Exit</a>
+            <span style="margin-right:1rem; color:var(--text-muted);">{{ faculty_name }}</span>
+            <a href="{{ url_for('faculty_logout') }}" class="btn btn-outline" style="border-color:#da3633; color:#da3633;">Force Exit</a>
         </div>
     </nav>
 
     <div class="container">
         {% if active_class %}
         <div class="camera-container">
-            <!-- LIVE NATIVE OPENCV MJPEG STREAM -->
             <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Camera Stream Loading...">
-
             <div class="cam-controls">
                 <div class="class-info">
-                    <h3 style="color: var(--accent-blue);">{{ active_class.class_name }}</h3>
+                    <h3 style="color:var(--accent-blue);">{{ active_class.class_name }}</h3>
                     <p>Live AI Session Active | {{ active_class.time }}</p>
                 </div>
                 <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
-                    <!-- Group Photo Button -->
-                    <button class="btn btn-primary" onclick="openGroupModal()"
-                        style="background: #1f6feb; border: none;">
+                    <button class="btn btn-primary" onclick="openGroupModal()" style="background:#1f6feb; border:none;">
                         📸 Group Photo Attendance
                     </button>
-                    <!-- Stop Button -->
-                    <button class="btn btn-primary" style="background: #da3633; border: none;" onclick="promptStop()">
-                        🛑 Stop & Export CSV
+                    <button class="btn btn-primary" style="background:#da3633; border:none;" onclick="promptStop()">
+                        🛑 Stop &amp; Export CSV
                     </button>
                 </div>
             </div>
         </div>
         {% else %}
-        <div class="card" style="text-align: center; padding: 4rem 2rem; margin-top: 2rem;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">☕</div>
-            <h2 style="margin-bottom: 1rem;">No Active Classes</h2>
-            <p style="color: var(--text-muted);">You do not have any scheduled classes at this time.</p>
+        <div class="card" style="text-align:center; padding:4rem 2rem; margin-top:2rem;">
+            <div style="font-size:3rem; margin-bottom:1rem;">☕</div>
+            <h2>No Active Classes</h2>
+            <p style="color:var(--text-muted);">You do not have any scheduled classes at this time.</p>
         </div>
         {% endif %}
     </div>
 
-    <!-- ── Stop Session Modal ─────────────────────────────────── -->
+    <!-- ── Stop Modal ─────────────────────────────────────────────── -->
     <div class="modal-overlay" id="stopModal">
         <div class="modal">
-            <h3 style="margin-bottom: 0.5rem; color: #da3633;">Stop AI Recognition?</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
-                This will shut down the camera and export Present/Absent CSVs. Enter your password to confirm.
+            <h3 style="margin-bottom:0.5rem; color:#da3633;">Stop AI Recognition?</h3>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem;">
+                Shuts down the camera and exports Present/Absent CSVs. Enter your password to confirm.
             </p>
             <div class="form-group">
-                <input type="password" id="faculty_pwd" placeholder="Enter password..." autofocus>
+                <input type="password" id="faculty_pwd" placeholder="Enter password...">
             </div>
-            <div id="stopError" class="alert alert-error" style="display: none; padding: 0.5rem; margin-bottom: 1rem;"></div>
+            <div id="stopError" class="alert alert-error" style="display:none; padding:0.5rem; margin-bottom:1rem;"></div>
             <div class="modal-buttons">
                 <button class="btn btn-outline" style="flex:1;" onclick="closeStopModal()">Cancel</button>
                 <button class="btn btn-primary" style="flex:1; background:#da3633;" id="confirmBtn" onclick="confirmStop()">Confirm Stop</button>
@@ -143,247 +127,300 @@
         </div>
     </div>
 
-    <!-- ── Group Photo Modal ──────────────────────────────────── -->
+    <!-- ── Group Photo Modal ──────────────────────────────────────── -->
     <div class="modal-overlay" id="groupModal">
         <div class="modal modal-wide">
-            <h3 style="margin-bottom: 0.4rem;">📸 Group Photo Attendance</h3>
-            <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:0.75rem;">
-                Capture or upload a class photo. AI will identify all students and mark attendance instantly.
-            </p>
 
-            <!-- Tab switcher -->
-            <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
-                <button id="tabCam" onclick="switchTab('cam')" class="btn btn-primary" style="flex:1; font-size:0.85rem;">📷 Live Camera</button>
-                <button id="tabFile" onclick="switchTab('file')" class="btn btn-outline" style="flex:1; font-size:0.85rem;">📁 Upload Photo</button>
-            </div>
+            <!-- STEP 1: Upload photos -->
+            <div id="uploadPane">
+                <h3 style="margin-bottom:0.4rem;">📸 Group Photo Attendance</h3>
+                <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">
+                    Upload up to <strong>3 photos</strong> of the class. The AI will analyze all of them, merge the results, and show you a confirmation list before marking attendance.
+                </p>
 
-            <!-- Camera panel -->
-            <div id="camPanel">
-                <div id="groupCamWrap">
-                    <video id="groupCam" autoplay muted playsinline></video>
-                    <canvas id="groupCanvas" class="group-canvas"></canvas>
+                <!-- 3 image slots -->
+                <div class="upload-strip">
+                    <div class="upload-slot" id="slot0" onclick="triggerPick(0)">
+                        <span style="font-size:1.8rem;">➕</span>
+                        <span>Photo 1</span>
+                        <img id="preview0" src="" style="display:none;">
+                        <button class="slot-remove" onclick="removeSlot(event,0)">✕</button>
+                    </div>
+                    <div class="upload-slot" id="slot1" onclick="triggerPick(1)">
+                        <span style="font-size:1.8rem;">➕</span>
+                        <span>Photo 2</span>
+                        <img id="preview1" src="" style="display:none;">
+                        <button class="slot-remove" onclick="removeSlot(event,1)">✕</button>
+                    </div>
+                    <div class="upload-slot" id="slot2" onclick="triggerPick(2)">
+                        <span style="font-size:1.8rem;">➕</span>
+                        <span>Photo 3</span>
+                        <img id="preview2" src="" style="display:none;">
+                        <button class="slot-remove" onclick="removeSlot(event,2)">✕</button>
+                    </div>
+                </div>
+                <input type="file" id="filePicker" accept="image/*" style="display:none" onchange="fileChosen(event)">
+
+                <div id="uploadMsg" style="font-size:0.88rem; color:var(--text-muted); margin-bottom:0.5rem;"></div>
+
+                <div class="modal-buttons">
+                    <button class="btn btn-outline" style="flex:1;" onclick="closeGroupModal()">Cancel</button>
+                    <button class="btn btn-primary" style="flex:1;" id="analyzeBtn" onclick="analyzePhotos()">
+                        🔍 Analyze &amp; Review
+                    </button>
                 </div>
             </div>
 
-            <!-- Upload panel -->
-            <div id="filePanel" style="display:none;">
-                <label for="photoUpload" style="
-                    display: flex; flex-direction: column; align-items: center; justify-content: center;
-                    border: 2px dashed var(--border-color); border-radius: 8px;
-                    padding: 2.5rem 1rem; cursor: pointer; color: var(--text-muted);
-                    transition: border-color 0.2s;
-                " id="uploadLabel">
-                    <span style="font-size:2.5rem; margin-bottom:0.5rem;">🖼️</span>
-                    <span>Click to choose a photo or drag &amp; drop</span>
-                    <span style="font-size:0.78rem; margin-top:0.4rem;">JPG / PNG accepted</span>
-                    <input type="file" id="photoUpload" accept="image/*" style="display:none" onchange="previewUpload(event)">
-                </label>
-                <img id="uploadPreview" src="" alt="Preview" style="display:none; width:100%; border-radius:8px; margin-top:0.75rem; max-height:300px; object-fit:contain;">
+            <!-- STEP 2: Review + confirm -->
+            <div id="reviewPane">
+                <h3 style="margin-bottom:0.3rem;">✅ Review Attendance</h3>
+                <p id="reviewSummary" style="color:var(--text-muted); font-size:0.88rem; margin-bottom:0.5rem;"></p>
+
+                <!-- Annotated photo thumbnails -->
+                <div class="ann-carousel" id="annCarousel"></div>
+
+                <div class="review-cols" id="reviewCols">
+                    <div>
+                        <h4 style="color:#2ea043;">✅ Present <span id="presentCount"></span></h4>
+                        <div id="presentList"></div>
+                    </div>
+                    <div>
+                        <h4 style="color:#da3633;">❌ Absent <span id="absentCount"></span></h4>
+                        <div id="absentList"></div>
+                    </div>
+                </div>
+                <p style="color:var(--text-muted); font-size:0.8rem; margin-top:0.75rem;">
+                    💡 Click any name to toggle Present ↔ Absent before confirming.
+                </p>
+
+                <div class="modal-buttons">
+                    <button class="btn btn-outline" style="flex:1;" onclick="backToUpload()">← Re-upload</button>
+                    <button class="btn btn-primary" style="flex:1; background:#2ea043;" id="confirmAttBtn" onclick="confirmAttendance()">
+                        ✅ Confirm &amp; Mark Attendance
+                    </button>
+                </div>
+                <div id="reviewMsg" style="margin-top:0.75rem; font-size:0.88rem; text-align:center;"></div>
             </div>
 
-            <!-- Results pane (shown after processing) -->
-            <div id="resultsPane">
-                <img id="annotatedImg" src="" alt="Annotated result">
-                <div id="resultSummary" style="margin-top:0.75rem; font-size:0.9rem;"></div>
-                <div id="resultBadges" style="margin-top:0.5rem;"></div>
+            <!-- STEP 3: Done -->
+            <div id="donePane" style="display:none;">
+                <div style="text-align:center; padding:1rem 0;">
+                    <div style="font-size:3rem; margin-bottom:0.75rem;">🎉</div>
+                    <h3 id="doneTitle"></h3>
+                    <p id="doneMsg" style="color:var(--text-muted); font-size:0.9rem; margin-top:0.4rem;"></p>
+                    <div id="doneBadges" style="margin-top:1rem;"></div>
+                </div>
+                <div class="modal-buttons">
+                    <button class="btn btn-outline" style="flex:1;" onclick="closeGroupModal()">Close</button>
+                    <button class="btn btn-primary" style="flex:1;" onclick="openGroupModal()">📸 New Batch</button>
+                </div>
             </div>
 
-            <div class="modal-buttons">
-                <button class="btn btn-outline" style="flex:1;" onclick="closeGroupModal()">Close</button>
-                <button class="btn btn-primary" style="flex:1;" id="captureGroupBtn" onclick="captureAndProcess()">
-                    📸 Capture &amp; Mark Attendance
-                </button>
-                <button class="btn btn-outline" style="flex:1; display:none;" id="retakeBtn" onclick="retake()">
-                    🔄 Retake
-                </button>
-            </div>
-
-            <div id="groupMsg" style="margin-top:0.75rem; font-size:0.88rem; text-align:center;"></div>
         </div>
     </div>
 
     <script>
-        // ── Stop Session Modal ──────────────────────────────────
-        function promptStop() {
-            document.getElementById('stopModal').style.display = 'flex';
-            document.getElementById('stopError').style.display = 'none';
-            document.getElementById('faculty_pwd').value = '';
-            document.getElementById('faculty_pwd').focus();
-        }
-        function closeStopModal() {
-            document.getElementById('stopModal').style.display = 'none';
-        }
-        async function confirmStop() {
-            const pwd = document.getElementById('faculty_pwd').value;
-            const btn = document.getElementById('confirmBtn');
-            const err = document.getElementById('stopError');
-            if (!pwd) return;
-            btn.disabled = true; btn.textContent = "Shutting down...";
-            try {
-                const res = await fetch('{{ url_for("api_stop_session") }}', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ passcode: pwd })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert(data.message + "\n\nCSVs exported to attendance_reports.");
-                    window.location.href = '{{ url_for("faculty_active_session") }}';
-                } else {
-                    err.style.display = 'block'; err.textContent = data.message;
-                    btn.disabled = false; btn.textContent = "Confirm Stop";
-                }
-            } catch (e) {
-                err.style.display = 'block'; err.textContent = "Server connection lost.";
-                btn.disabled = false; btn.textContent = "Confirm Stop";
-            }
-        }
-
-        // ── Group Photo Modal ────────────────────────────────────
-        let groupStream = null;
-        let activeTab = 'cam';  // 'cam' or 'file'
-        let uploadedB64 = null;
-
-        function switchTab(tab) {
-            activeTab = tab;
-            document.getElementById('camPanel').style.display  = tab === 'cam'  ? 'block' : 'none';
-            document.getElementById('filePanel').style.display = tab === 'file' ? 'block' : 'none';
-            document.getElementById('tabCam').className  = tab === 'cam'  ? 'btn btn-primary'  : 'btn btn-outline';
-            document.getElementById('tabFile').className = tab === 'file' ? 'btn btn-primary'  : 'btn btn-outline';
-            document.getElementById('captureGroupBtn').textContent =
-                tab === 'cam' ? '📸 Capture & Mark Attendance' : '✅ Process & Mark Attendance';
-            if (tab === 'file' && groupStream) {
-                groupStream.getTracks().forEach(t => t.stop()); groupStream = null;
-            }
-        }
-
-        function previewUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => {
-                uploadedB64 = e.target.result;
-                document.getElementById('uploadPreview').src = uploadedB64;
-                document.getElementById('uploadPreview').style.display = 'block';
-                document.getElementById('uploadLabel').style.borderColor = '#2ea043';
-            };
-            reader.readAsDataURL(file);
-        }
-
-        async function openGroupModal() {
-            document.getElementById('groupModal').style.display = 'flex';
-            document.getElementById('resultsPane').style.display = 'none';
-            document.getElementById('retakeBtn').style.display = 'none';
-            document.getElementById('captureGroupBtn').style.display = 'block';
-            document.getElementById('groupMsg').textContent = '';
-            uploadedB64 = null;
-            // Always open on Camera tab
-            switchTab('cam');
-            try {
-                groupStream = await navigator.mediaDevices.getUserMedia({ video: { width:1280, height:720 } });
-                document.getElementById('groupCam').srcObject = groupStream;
-            } catch(e) {
-                document.getElementById('groupMsg').textContent = '⚠️ Camera unavailable. Use the Upload tab instead.';
-                switchTab('file');
-            }
-        }
-
-        function closeGroupModal() {
-            if (groupStream) { groupStream.getTracks().forEach(t => t.stop()); groupStream = null; }
-            document.getElementById('groupModal').style.display = 'none';
-        }
-
-        function retake() {
-            document.getElementById('resultsPane').style.display = 'none';
-            document.getElementById('captureGroupBtn').style.display = 'block';
-            document.getElementById('retakeBtn').style.display = 'none';
-            document.getElementById('groupMsg').textContent = '';
-            uploadedB64 = null;
-            if (activeTab === 'file') {
-                document.getElementById('photoUpload').value = '';
-                document.getElementById('uploadPreview').style.display = 'none';
-                document.getElementById('uploadLabel').style.borderColor = '';
-            }
-        }
-
-        async function captureAndProcess() {
-            const btn = document.getElementById('captureGroupBtn');
-            const msg = document.getElementById('groupMsg');
-            let b64;
-
-            if (activeTab === 'file') {
-                // Upload path — use the already-read file
-                if (!uploadedB64) {
-                    msg.style.color = '#da3633';
-                    msg.textContent = 'Please select a photo first.';
-                    return;
-                }
-                b64 = uploadedB64;
-                document.getElementById('filePanel').style.display = 'none';
+    // ── Stop Modal ───────────────────────────────────────────────────
+    function promptStop() {
+        document.getElementById('stopModal').style.display = 'flex';
+        document.getElementById('stopError').style.display = 'none';
+        document.getElementById('faculty_pwd').value = '';
+        document.getElementById('faculty_pwd').focus();
+    }
+    function closeStopModal() { document.getElementById('stopModal').style.display = 'none'; }
+    async function confirmStop() {
+        const pwd = document.getElementById('faculty_pwd').value;
+        const btn = document.getElementById('confirmBtn');
+        const err = document.getElementById('stopError');
+        if (!pwd) return;
+        btn.disabled = true; btn.textContent = 'Shutting down...';
+        try {
+            const res  = await fetch('{{ url_for("api_stop_session") }}', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ passcode: pwd })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message + '\n\nCSVs exported to attendance_reports.');
+                window.location.href = '{{ url_for("faculty_active_session") }}';
             } else {
-                // Camera path — snapshot from video
-                const video  = document.getElementById('groupCam');
-                const canvas = document.getElementById('groupCanvas');
-                canvas.width  = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                b64 = canvas.toDataURL('image/jpeg', 0.92);
-                document.getElementById('groupCamWrap').style.display = 'none';
+                err.style.display = 'block'; err.textContent = data.message;
+                btn.disabled = false; btn.textContent = 'Confirm Stop';
             }
-
-            btn.disabled = true; btn.textContent = '⏳ Analyzing with AI...';
-            msg.style.color = 'var(--text-muted)';
-            msg.textContent = 'YOLO detecting faces → InsightFace identifying students...';
-
-            try {
-                const res = await fetch('{{ url_for("api_group_photo_attend") }}', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ image: b64 })
-                });
-                const data = await res.json();
-
-                if (!data.success) {
-                    msg.style.color = '#da3633'; msg.textContent = '❌ ' + data.message;
-                    document.getElementById('groupCamWrap').style.display = 'block';
-                    btn.disabled = false; btn.textContent = '📸 Capture & Mark Attendance';
-                    return;
-                }
-
-                // Show annotated image
-                document.getElementById('annotatedImg').src = data.annotated_image;
-                document.getElementById('resultsPane').style.display = 'block';
-
-                // Summary text
-                const detector = data.yolo_used ? 'YOLOv8 + InsightFace' : 'InsightFace';
-                document.getElementById('resultSummary').innerHTML =
-                    `<strong style="color:#2ea043">✅ ${data.recognized_count} students marked present</strong>` +
-                    ` &nbsp;|&nbsp; ${data.unrecognized_count} unknown face(s)` +
-                    ` &nbsp;|&nbsp; ${data.total_faces} total detected` +
-                    `<br><span style="color:var(--text-muted);font-size:0.8rem;">Powered by ${detector}</span>`;
-
-                // Name badges
-                const badges = document.getElementById('resultBadges');
-                badges.innerHTML = '';
-                (data.marked || []).forEach(n => {
-                    badges.innerHTML += `<span class="result-badge badge-present">✓ ${n}</span>`;
-                });
-                (data.skipped || []).forEach(n => {
-                    badges.innerHTML += `<span class="result-badge badge-unknown">⚠ ${n}</span>`;
-                });
-
-                msg.style.color = '#2ea043';
-                msg.textContent = data.recognized_count > 0
-                    ? `Attendance marked successfully!`
-                    : `No registered students detected in the photo.`;
-
-                btn.style.display = 'none';
-                document.getElementById('retakeBtn').style.display = 'block';
-
-            } catch(e) {
-                msg.style.color = '#da3633'; msg.textContent = '❌ Network error: ' + e.message;
-                document.getElementById('groupCamWrap').style.display = 'block';
-                btn.disabled = false; btn.textContent = '📸 Capture & Mark Attendance';
-            }
+        } catch(e) {
+            err.style.display = 'block'; err.textContent = 'Server connection lost.';
+            btn.disabled = false; btn.textContent = 'Confirm Stop';
         }
+    }
+
+    // ── Group Photo Modal ────────────────────────────────────────────
+    const slots    = [null, null, null];   // base64 data URLs
+    let   pickIdx  = 0;
+    let   reviewData = { present:[], absent:[] };
+
+    function openGroupModal() {
+        slots.fill(null);
+        [0,1,2].forEach(i => clearSlotUI(i));
+        document.getElementById('uploadPane').style.display  = 'block';
+        document.getElementById('reviewPane').style.display  = 'none';
+        document.getElementById('donePane').style.display    = 'none';
+        document.getElementById('uploadMsg').textContent     = '';
+        document.getElementById('groupModal').style.display  = 'flex';
+    }
+    function closeGroupModal() { document.getElementById('groupModal').style.display = 'none'; }
+
+    function triggerPick(idx) { pickIdx = idx; document.getElementById('filePicker').click(); }
+    function fileChosen(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => setSlot(pickIdx, ev.target.result);
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    }
+    function setSlot(idx, b64) {
+        slots[idx] = b64;
+        const slot    = document.getElementById(`slot${idx}`);
+        const preview = document.getElementById(`preview${idx}`);
+        preview.src           = b64;
+        preview.style.display = 'block';
+        slot.classList.add('filled');
+        // hide the text inside slot (the span elements)
+        slot.querySelectorAll('span').forEach(s => s.style.display = 'none');
+    }
+    function clearSlotUI(idx) {
+        slots[idx] = null;
+        const slot    = document.getElementById(`slot${idx}`);
+        const preview = document.getElementById(`preview${idx}`);
+        preview.src = ''; preview.style.display = 'none';
+        slot.classList.remove('filled');
+        slot.querySelectorAll('span').forEach(s => s.style.display = '');
+    }
+    function removeSlot(e, idx) { e.stopPropagation(); clearSlotUI(idx); }
+
+    async function analyzePhotos() {
+        const images = slots.filter(Boolean);
+        if (!images.length) {
+            document.getElementById('uploadMsg').textContent = '⚠️ Add at least one photo first.';
+            document.getElementById('uploadMsg').style.color = '#da3633';
+            return;
+        }
+        const btn = document.getElementById('analyzeBtn');
+        btn.disabled = true; btn.textContent = `⏳ Analyzing ${images.length} photo(s)...`;
+        document.getElementById('uploadMsg').style.color = 'var(--text-muted)';
+        document.getElementById('uploadMsg').textContent = 'Running YOLO + InsightFace on each image, merging results...';
+
+        try {
+            const res  = await fetch('{{ url_for("api_multi_photo_attend") }}', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ images })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                document.getElementById('uploadMsg').style.color = '#da3633';
+                document.getElementById('uploadMsg').textContent = '❌ ' + data.message;
+                btn.disabled = false; btn.textContent = '🔍 Analyze & Review';
+                return;
+            }
+            reviewData = data;
+            showReview(data);
+        } catch(e) {
+            document.getElementById('uploadMsg').style.color = '#da3633';
+            document.getElementById('uploadMsg').textContent = '❌ Network error: ' + e.message;
+            btn.disabled = false; btn.textContent = '🔍 Analyze & Review';
+        }
+    }
+
+    function showReview(data) {
+        document.getElementById('uploadPane').style.display = 'none';
+        document.getElementById('reviewPane').style.display = 'block';
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('analyzeBtn').textContent = '🔍 Analyze & Review';
+
+        document.getElementById('reviewSummary').textContent =
+            `${data.photos_processed} photo(s) processed · ${data.present.length} recognized · ${data.absent.length} not detected`;
+
+        // Annotated image carousel
+        const carousel = document.getElementById('annCarousel');
+        carousel.innerHTML = data.annotated_images.map((src, i) =>
+            `<img src="${src}" alt="Photo ${i+1} annotated">`
+        ).join('');
+
+        renderLists(data.present, data.absent);
+    }
+
+    function renderLists(present, absent) {
+        document.getElementById('presentCount').textContent = `(${present.length})`;
+        document.getElementById('absentCount').textContent  = `(${absent.length})`;
+
+        document.getElementById('presentList').innerHTML = present.map(p => `
+            <label class="student-row" data-pid="${p.person_id}" data-side="present">
+                <input type="checkbox" checked onchange="toggleStudent(this)">
+                <span>${p.name}</span>
+                <span class="conf-badge">${p.employee_id || ''} ${p.confidence ? p.confidence+'%' : ''}</span>
+            </label>`).join('') || '<p style="color:var(--text-muted);font-size:0.85rem;">None detected</p>';
+
+        document.getElementById('absentList').innerHTML = absent.map(p => `
+            <label class="student-row" data-pid="${p.person_id}" data-side="absent">
+                <input type="checkbox" onchange="toggleStudent(this)">
+                <span>${p.name}</span>
+                <span class="conf-badge">${p.employee_id || ''}</span>
+            </label>`).join('') || '<p style="color:var(--text-muted);font-size:0.85rem;">None — all students detected 🎉</p>';
+    }
+
+    function toggleStudent(cb) {
+        const row    = cb.closest('.student-row');
+        const pid    = row.dataset.pid;
+        const toPresent = cb.checked;
+        // Find person in reviewData arrays and move them
+        let person = null;
+        if (toPresent) {
+            const idx = reviewData.absent.findIndex(p => p.person_id === pid);
+            if (idx !== -1) { person = reviewData.absent.splice(idx, 1)[0]; reviewData.present.push(person); }
+        } else {
+            const idx = reviewData.present.findIndex(p => p.person_id === pid);
+            if (idx !== -1) { person = reviewData.present.splice(idx, 1)[0]; reviewData.absent.push(person); }
+        }
+        renderLists(reviewData.present, reviewData.absent);
+    }
+
+    function backToUpload() {
+        document.getElementById('reviewPane').style.display = 'none';
+        document.getElementById('uploadPane').style.display = 'block';
+        document.getElementById('uploadMsg').textContent = '';
+    }
+
+    async function confirmAttendance() {
+        const btn = document.getElementById('confirmAttBtn');
+        const msg = document.getElementById('reviewMsg');
+        btn.disabled = true; btn.textContent = '⏳ Marking attendance...';
+        msg.textContent = '';
+
+        try {
+            const res  = await fetch('{{ url_for("api_confirm_attendance") }}', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ present: reviewData.present })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                msg.style.color = '#da3633'; msg.textContent = '❌ ' + data.message;
+                btn.disabled = false; btn.textContent = '✅ Confirm & Mark Attendance';
+                return;
+            }
+            showDone(data);
+        } catch(e) {
+            msg.style.color = '#da3633'; msg.textContent = '❌ Network error: ' + e.message;
+            btn.disabled = false; btn.textContent = '✅ Confirm & Mark Attendance';
+        }
+    }
+
+    function showDone(data) {
+        document.getElementById('reviewPane').style.display = 'none';
+        document.getElementById('donePane').style.display   = 'block';
+        document.getElementById('doneTitle').textContent    = `${data.marked_count} students marked present!`;
+        document.getElementById('doneMsg').textContent      = data.csv_message || 'Attendance recorded.';
+        document.getElementById('doneBadges').innerHTML     =
+            (data.marked || []).map(n => `<span class="badge-present">✓ ${n}</span>`).join('');
+    }
     </script>
 </body>
 </html>
