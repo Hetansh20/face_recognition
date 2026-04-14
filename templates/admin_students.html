@@ -32,7 +32,11 @@
         <h2>🎓 Student Management</h2>
         <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Register, edit and map students to their class and batch.</p>
     </div>
-    <button class="btn btn-primary" onclick="openAddModal()">+ Add Student</button>
+    <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-outline" style="color:#da3633; border-color:#da3633;" onclick="clearAllStudents()">🗑️ Clear All</button>
+        <button class="btn btn-outline" onclick="openBulkModal()">📤 Bulk Upload</button>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Add Student</button>
+    </div>
 </div>
 
 <div class="section-tabs">
@@ -58,14 +62,14 @@
 <table class="student-table" id="studentTable">
     <thead>
         <tr>
-            <th>Sr. No.</th><th>Name</th><th>Sem / Class</th><th>Batch</th>
-            <th>Roll No.</th><th>Email</th><th>Face</th><th>Actions</th>
+            <th>Sr. No.</th><th>Name</th><th>Class</th><th>Batch</th>
+            <th>GR No.</th><th>Enrollment</th><th>Email</th><th>Face</th><th>Actions</th>
         </tr>
     </thead>
     <tbody id="studentBody">
         {% for stu in students %}
         <tr id="row-{{ stu.id }}" data-class-id="{{ stu.class_id or '' }}">
-            <td style="color:var(--text-muted); font-size:0.85rem;">{{ loop.index }}</td>
+            <td style="color:var(--text-muted); font-size:0.85rem;">{{ stu.id }}</td>
             <td style="font-weight:600;">{{ stu.name }}</td>
             <td>
                 {% if stu.class_id %}
@@ -81,7 +85,8 @@
                     <span class="badge badge-gray">—</span>
                 {% endif %}
             </td>
-            <td><code>{{ stu.student_id }}</code></td>
+            <td><code>{{ stu.gr_number or '—' }}</code></td>
+            <td><code>{{ stu.enrollment_number or '—' }}</code></td>
             <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu.email }}</td>
             <td>
                 {% if stu.face_pid %}
@@ -158,8 +163,9 @@
         <h3 id="stuModalTitle" style="margin-bottom:1rem;">Add Student</h3>
         <input type="hidden" id="stuId">
 
-        <div class="form-grid-2" style="margin-bottom:0.75rem;">
-            <div class="form-group"><label>Student ID / Roll</label><input id="iStudentId" placeholder="e.g. 92301733001"></div>
+        <div class="form-grid-3" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>GR Number (Match Photo)</label><input id="iGrNumber" placeholder="e.g. 131322"></div>
+            <div class="form-group"><label>Enrollment Number</label><input id="iEnrollment" placeholder="e.g. 92410133031"></div>
             <div class="form-group"><label>Full Name</label><input id="iName" placeholder="Full name"></div>
         </div>
         <div class="form-grid-2" style="margin-bottom:0.75rem;">
@@ -195,9 +201,33 @@
         </div>
 
         <p id="stuModalMsg" style="font-size:0.85rem; margin-bottom:0.5rem;"></p>
-        <div style="display:flex; gap:1rem; margin-top:1rem;">
-            <button class="btn btn-outline" style="flex:1;" onclick="closeStuModal()">Cancel</button>
-            <button class="btn btn-primary" style="flex:1;" id="stuSaveBtn" onclick="saveStudent()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Bulk Upload Modal ──────────────────────────────────────── -->
+<div class="modal-overlay" id="bulkModal">
+    <div class="modal" style="max-width:440px;">
+        <h3 style="margin-bottom:1rem;">📤 Bulk Upload Students</h3>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1.2rem;">
+            Upload an Excel file (.xlsx) with student details and a ZIP file containing photos 
+            named by GR number (e.g. <code>131322.jpg</code>).
+        </p>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Excel File (Student Data)</label>
+            <input type="file" id="bulkExcel" accept=".xlsx, .xls">
+        </div>
+        <div class="form-group" style="margin-bottom:1.5rem;">
+            <label>ZIP File (Photos)</label>
+            <input type="file" id="bulkZip" accept=".zip">
+        </div>
+
+        <div id="bulkMsg" style="font-size:0.85rem; margin-bottom:1rem; padding:0.5rem; border-radius:4px; display:none;"></div>
+
+        <div style="display:flex; gap:1rem;">
+            <button class="btn btn-outline" style="flex:1;" onclick="closeBulkModal()">Cancel</button>
+            <button class="btn btn-primary" style="flex:1;" id="bulkUploadBtn" onclick="handleBulkUpload()">Upload</button>
         </div>
     </div>
 </div>
@@ -214,7 +244,7 @@
             <select id="linkStudentSel">
                 <option value="">— choose —</option>
                 {% for stu in students %}
-                <option value="{{ stu.id }}">{{ stu.name }} ({{ stu.student_id }})</option>
+                <option value="{{ stu.id }}">{{ stu.name }} ({{ stu.gr_number or 'No GR' }})</option>
                 {% endfor %}
             </select>
         </div>
@@ -261,8 +291,11 @@ function searchStudents() {
 // ── Add / Edit Modal ──────────────────────────────────────────
 function openAddModal() {
     document.getElementById('stuId').value = '';
-    document.getElementById('stuModalTitle').textContent = 'Add Student';
-    ['iStudentId','iName','iEmail','iDept','iRoll','iPhone'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('stuModalTitle').textContent = 'Add New Student';
+    ['iGrNumber','iEnrollment','iName','iEmail','iDept','iRoll','iPhone'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
     ['iSem','iClass','iBatch'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('stuModalMsg').textContent = '';
     document.getElementById('stuModal').style.display = 'flex';
@@ -270,23 +303,21 @@ function openAddModal() {
 
 async function openEdit(btn) {
     const id = btn.dataset.id;
-    // Find student in our pre-loaded list
     const stu = allStudents.find(s => s.id == id);
     if (!stu) return;
 
-    // Find semester_id (sem_id) from class_id via classesData
     const classId = stu.class_id;
     const classInfo = classesData.find(c => c.id == classId);
     const semId = classInfo ? classInfo.sem_id : '';
 
     document.getElementById('stuId').value = id;
-    document.getElementById('stuModalTitle').textContent = 'Edit Student';
-    document.getElementById('iStudentId').value = stu.student_id;
+    document.getElementById('stuModalTitle').textContent = 'Edit Student (Sr. No: ' + id + ')';
+    document.getElementById('iGrNumber').value = stu.gr_number || '';
+    document.getElementById('iEnrollment').value = stu.enrollment_number || '';
     document.getElementById('iName').value       = stu.name;
     document.getElementById('iEmail').value      = stu.email;
     document.getElementById('iDept').value       = stu.department;
     
-    // Set Semester and trigger cascading loads
     document.getElementById('iSem').value = semId;
     if (semId) {
         await loadClassesInModal(semId);
@@ -326,19 +357,20 @@ async function loadBatchesInModal(classId) {
 }
 
 async function saveStudent() {
-    const id = document.getElementById('stuId').value;
+    const id = editingId;
     const payload = {
-        student_id:  document.getElementById('iStudentId').value.trim(),
         name:        document.getElementById('iName').value.trim(),
         email:       document.getElementById('iEmail').value.trim(),
+        gr_number:   document.getElementById('iGrNumber').value.trim(),
+        enrollment_number: document.getElementById('iEnrollment').value.trim(),
         department:  document.getElementById('iDept').value.trim(),
         class_id:    parseInt(document.getElementById('iClass').value) || null,
         batch_id:    parseInt(document.getElementById('iBatch').value) || null,
         roll_number: document.getElementById('iRoll').value.trim() || null,
         phone:       document.getElementById('iPhone').value.trim() || null,
     };
-    if (!payload.student_id || !payload.name || !payload.email)
-        return setModalMsg('stuModalMsg', 'Student ID, Name and Email are required.', 'red');
+    if (!payload.gr_number || !payload.name || !payload.email)
+        return setModalMsg('stuModalMsg', 'GR Number, Name and Email are required.', 'red');
 
     const url = id ? '/api/admin/student/update' : '/api/admin/student/add';
     if (id) payload.id = parseInt(id);
@@ -376,6 +408,88 @@ function setModalMsg(id, msg, color) {
     const el = document.getElementById(id);
     el.textContent = msg;
     el.style.color = color === 'green' ? '#2ea043' : '#da3633';
+}
+
+// ── Bulk Upload ─────────────────────────────────────────────
+function openBulkModal() {
+    document.getElementById('bulkExcel').value = '';
+    document.getElementById('bulkZip').value = '';
+    const msg = document.getElementById('bulkMsg');
+    msg.style.display = 'none';
+    msg.textContent = '';
+    document.getElementById('bulkModal').style.display = 'flex';
+}
+function closeBulkModal() { document.getElementById('bulkModal').style.display = 'none'; }
+
+async function handleBulkUpload() {
+    const excel = document.getElementById('bulkExcel').files[0];
+    const zip   = document.getElementById('bulkZip').files[0];
+    const btn   = document.getElementById('bulkUploadBtn');
+    const msg   = document.getElementById('bulkMsg');
+
+    if (!excel || !zip) {
+        msg.textContent = 'Please select both Excel and ZIP files.';
+        msg.style.color = '#da3633';
+        msg.style.background = 'rgba(218,54,51,0.1)';
+        msg.style.display = 'block';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('excel', excel);
+    formData.append('zip',   zip);
+
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    msg.textContent = 'Processing files... this may take a moment.';
+    msg.style.color = 'var(--accent-blue)';
+    msg.style.background = 'rgba(88,166,255,0.1)';
+    msg.style.display = 'block';
+
+    try {
+        const res = await fetch('/api/admin/student/bulk_upload', { method:'POST', body:formData });
+        const r = await res.json();
+        
+        if (r.success) {
+            msg.textContent = r.message;
+            msg.style.color = '#2ea043';
+            msg.style.background = 'rgba(46,160,67,0.1)';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            msg.textContent = 'Error: ' + r.message;
+            msg.style.color = '#da3633';
+            msg.style.background = 'rgba(218,54,51,0.1)';
+            btn.disabled = false;
+            btn.textContent = 'Upload';
+        }
+    } catch (err) {
+        msg.textContent = 'Network error occurred.';
+        msg.style.color = '#da3633';
+        msg.style.background = 'rgba(218,54,51,0.1)';
+        btn.disabled = false;
+        btn.textContent = 'Upload';
+    }
+}
+
+async function clearAllStudents() {
+    const confirmed = confirm("⚠️ DANGER: This will permanently delete ALL students, their attendance records, and photos. This cannot be undone.\n\nAre you sure you want to proceed?");
+    if (!confirmed) return;
+    
+    const doubleConfirmed = confirm("LAST WARNING: This is a total reset of the student database. Are you ABSOLUTELY sure?");
+    if (!doubleConfirmed) return;
+    
+    try {
+        const res = await fetch('/api/admin/student/clear_all', { method: 'POST' });
+        const r = await res.json();
+        if (r.success) {
+            alert(r.message);
+            location.reload();
+        } else {
+            alert("Error: " + r.message);
+        }
+    } catch (err) {
+        alert("An error occurred during deletion.");
+    }
 }
 
 async function post(url, body) {

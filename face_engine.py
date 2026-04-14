@@ -226,13 +226,13 @@ class FaceEngine:
                 from attendance_marker import attendance_marker
                 info = self.database.get(person_id)
                 if info:
-                    emp_id = info.get('employee_id', "").strip()
+                    gr_num = info.get('gr_number', "").strip()
                     from database import Database
                     db = Database()
                     
                     stu = None
-                    if emp_id:
-                        stu = db.get_student_by_student_id(emp_id)
+                    if gr_num:
+                        stu = db.get_student_by_gr_number(gr_num)
                         
                     if not stu:
                         name_lower = info.get('name', '').lower()
@@ -245,12 +245,12 @@ class FaceEngine:
                         attendance_marker.mark_student_present(stu[0], self.timetable_id)
                     else:
                         name = info.get('name', 'Unknown')
-                        if not emp_id:
-                            emp_id = 'AUTO_' + name.replace(' ', '_') + str(int(time.time()))
+                        if not gr_num:
+                            gr_num = 'AUTO_' + name.replace(' ', '_') + str(int(time.time()))
                         dept = 'Unassigned'
-                        new_email = f"{emp_id}@auto.reg"
-                        db.add_student(emp_id, name, new_email, dept)
-                        new_stu = db.get_student_by_student_id(emp_id)
+                        new_email = f"{gr_num}@auto.reg"
+                        db.add_student(gr_num, '', name, new_email, dept)
+                        new_stu = db.get_student_by_gr_number(gr_num)
                         if new_stu:
                             attendance_marker.mark_student_present(new_stu[0], self.timetable_id)
 

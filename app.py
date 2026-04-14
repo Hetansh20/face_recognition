@@ -6,6 +6,13 @@ from database import Database
 from timetable_manager import timetable_manager
 from analytics_service import analytics_service
 from csv_export_service import CSVExportService
+import zipfile
+import pandas as pd
+import io
+import json
+import pickle
+import numpy as np
+import cv2
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -119,7 +126,7 @@ def api_add_faculty():
 def api_add_student():
     data = request.json
     try:
-        get_db().add_student(data['student_id'], data['name'], data['email'], data['department'])
+        get_db().add_student(data['gr_number'], data.get('enrollment_number', ''), data['name'], data['email'], data['department'])
         return jsonify({"success": True, "message": "Student added successfully!"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
@@ -282,7 +289,7 @@ def api_admin_student_add():
     d = request.json
     try:
         sid = get_db().add_student(
-            d['student_id'], d['name'], d['email'], d.get('department', 'Unassigned'),
+            d.get('gr_number'), d.get('enrollment_number'), d['name'], d['email'], d.get('department', 'Unassigned'),
             d.get('class_id'), d.get('batch_id'), d.get('roll_number'), d.get('phone')
         )
         return jsonify({"success": True, "message": "Student added!", "id": sid})
@@ -296,7 +303,9 @@ def api_admin_student_update():
     try:
         get_db().update_student(
             d['id'], d['name'], d['email'], d.get('department', 'Unassigned'),
-            d.get('class_id'), d.get('batch_id'), d.get('roll_number'), d.get('phone')
+            gr_number=d.get('gr_number'), enrollment_number=d.get('enrollment_number'),
+            class_id=d.get('class_id'), batch_id=d.get('batch_id'), 
+            roll_number=d.get('roll_number'), phone=d.get('phone')
         )
         return jsonify({"success": True, "message": "Student updated!"})
     except Exception as e:
@@ -311,15 +320,273 @@ def api_admin_student_delete():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
+@app.route("/api/admin/student/clear_all", methods=["POST"])
+@admin_required
+def api_admin_student_clear_all():
+    try:
+        db = get_db()
+        db.clear_all_students()
+        
+        # Clear photos directory
+        if os.path.exists(FACES_DIR):
+            import shutil
+            for filename in os.listdir(FACES_DIR):
+                file_path = os.path.join(FACES_DIR, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f'Failed to delete {file_path}. Reason: {e}')
+        
+        # Reset face_database.json
+        if os.path.exists(FACE_DB):
+            with open(FACE_DB, "w") as f:
+                json.dump({}, f)
+                
+        return jsonify({"success": True, "message": "All student records and photos cleared successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
 @app.route("/api/admin/student/link_face", methods=["POST"])
 @admin_required
 def api_admin_link_face():
     d = request.json
     try:
-        get_db().link_student_face(d['student_id'], d['face_pid'])
+        get_db().link_student_face(d['id'], d['face_pid'])
         return jsonify({"success": True, "message": "Face linked to student!"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/student/bulk_upload", methods=["POST"])
+@admin_required
+def api_admin_student_bulk_upload():
+    if 'excel' not in request.files or 'zip' not in request.files:
+        return jsonify({"success": False, "message": "Excel and ZIP files required."})
+    
+    excel_file = request.files['excel']
+    zip_file = request.files['zip']
+    
+    try:
+        # 1. Parse Data File
+        filename = excel_file.filename.lower()
+        if filename.endswith('.csv'):
+            df = pd.read_csv(excel_file)
+        else:
+            # Read everything first to allow finding the header row
+            df = pd.read_excel(excel_file, header=None)
+            
+        # Helper to normalize strings for comparison
+        def normalize_str(s):
+            if not s or pd.isna(s): return ""
+            s = str(s).lower().strip().replace('.', '_').replace('-', '_').replace(' ', '_')
+            while '__' in s: s = s.replace('__', '_')
+            return s.strip('_')
+
+        # Supporting variants of column names (post-normalization)
+        col_map = {
+            'gr_number': ['gr_number', 'gr_no', 'gr', 'student_id', 'roll_no', 'roll_number', 'sr_no', 'sr_number'],
+            'enrollment_number': ['enroll_no', 'enrollment_number', 'enrollment_no', 'enrollment', 'enroll'],
+            'name': ['name', 'full_name', 'student_name', 'student'],
+            'email': ['email', 'email_id'],
+            'department': ['department', 'stream', 'dept', 'specialization'],
+            'roll_number': ['roll_number', 'roll_no', 'roll'],
+            'class_name': ['class_name', 'class', 'sem_class'],
+            'batch_name': ['batch_name', 'batch', 'lab_batch']
+        }
+
+        # Try to find which row is the header by looking for 'gr' or 'name' variants
+        header_index = 0
+        found_any = False
+        
+        # We'll check the first 10 rows for something that looks like a header
+        for i in range(min(10, len(df))):
+            row_vals = [normalize_str(v) for v in df.iloc[i]]
+            # If this row contains "gr" or "name", assume it's the header
+            if any(any(alias in v for v in row_vals) for alias in ['gr_no', 'name', 'email']):
+                header_index = i
+                found_any = True
+                break
+        
+        if found_any:
+            # Set columns to this row and drop everything above it
+            df.columns = [normalize_str(c) for c in df.iloc[header_index]]
+            df = df.iloc[header_index + 1:].reset_index(drop=True)
+        else:
+            # Revert to standard header logic if no "smart" header found
+            if not filename.endswith('.csv'):
+                df = pd.read_excel(excel_file) # Re-read normally
+            df.columns = [normalize_str(c) for c in df.columns]
+
+        # Final check and rename
+        found_targets = {}
+        for target, aliases in col_map.items():
+            for alias in aliases:
+                if alias in df.columns:
+                    df = df.rename(columns={alias: target})
+                    found_targets[target] = True
+                    break
+        
+        if not all(found_targets.get(t) for t in ['gr_number', 'name', 'email']):
+            missing = [t for t in ['gr_number', 'name', 'email'] if not found_targets.get(t)]
+            detected = ", ".join([c for c in df.columns if not c.startswith('unnamed')])
+            return jsonify({
+                "success": False, 
+                "message": f"Missing columns: {', '.join(missing)}. Detected: [{detected}]. Ensure your header is in the first few rows."
+            })
+        
+        # 2. Open ZIP
+        with zipfile.ZipFile(zip_file) as zf:
+            zip_contents = zf.namelist()
+            
+            db = get_db()
+            face_db = {}
+            if os.path.exists(FACE_DB):
+                with open(FACE_DB) as f:
+                    face_db = json.load(f)
+            
+            added_count = 0
+            photo_count = 0
+            errors = []
+            
+            # Pre-fetch Class and Batch maps for resolution
+            all_classes = db.get_all_classes()
+            all_batches = db.get_all_batches()
+            
+            # Map name -> id for classes
+            class_map = {str(c[2]).lower().strip(): c[0] for c in all_classes}
+            
+            def resolve_class(target_name):
+                if not target_name: return None
+                target = str(target_name).lower().strip()
+                # 1. Exact match
+                if target in class_map: return class_map[target]
+                # 2. Fuzzy match (Excel name 'EK3' matches DB name '6EK3')
+                for name_in_db, cid in class_map.items():
+                    if target in name_in_db or name_in_db in target:
+                        return cid
+                return None
+
+            # Batch map
+            batch_map = {str(b[2]).lower().strip(): b[0] for b in all_batches}
+
+            # Map basenames in ZIP to full paths to ignore folder structures
+            zip_basename_map = {os.path.basename(p): p for p in zip_contents if not p.endswith('/')}
+            
+            os.makedirs(FACES_DIR, exist_ok=True)
+            
+            for index, row in df.iterrows():
+                try:
+                    def clean_id(val):
+                        v = str(val).strip()
+                        if '.' in v: v = v.split('.')[0]
+                        return v if v.lower() != 'nan' else ''
+
+                    gr_num = clean_id(row['gr_number'])
+                    enroll = clean_id(row.get('enrollment_number', ''))
+                    name   = str(row['name']).strip()
+                    email  = str(row['email']).strip()
+                    
+                    if not gr_num or not name or name.lower() == 'nan': continue
+                    
+                    dept  = str(row.get('department', 'Unassigned'))
+                    # Handle optional class/batch/roll/phone correctly (avoid NaNs)
+                    def clean(val): return val if pd.notna(val) and str(val).lower() != 'nan' else None
+                    
+                    roll  = clean(row.get('roll_number'))
+                    phone = clean(row.get('phone'))
+                    
+                    # Resolve IDs if names are provided
+                    cid = clean(row.get('class_id'))
+                    bid = clean(row.get('batch_id'))
+                    
+                    c_name = clean(row.get('class_name'))
+                    if c_name and not cid:
+                        cid = resolve_class(c_name)
+                        
+                    b_name = clean(row.get('batch_name'))
+                    if b_name:
+                        # Batch Renaming: 1A -> A, 1B -> B
+                        b_str = str(b_name).strip().upper()
+                        if len(b_str) == 2 and b_str[0] == '1' and b_str[1].isalpha():
+                            b_str = b_str[1:] # Use just the letter
+                        
+                        if not bid:
+                            bid = batch_map.get(b_str.lower())
+                    
+                    if cid: cid = int(float(cid))
+                    if bid: bid = int(float(bid))
+                    
+                    # Add/Update in SQLite (Robust Upsert: Check GR, then Enrollment, then Email)
+                    existing = db.get_student_by_gr_number(gr_num)
+                    if not existing:
+                        existing = db.get_student_by_enrollment(enroll)
+                    if not existing:
+                        existing = db.get_student_by_email(email)
+                        
+                    if existing:
+                        db.update_student(existing[0], name, email, dept, gr_num, enroll, cid, bid, roll, phone)
+                        stu_db_id = existing[0]
+                    else:
+                        stu_db_id = db.add_student(gr_num, enroll, name, email, dept, cid, bid, roll, phone)
+                    added_count += 1
+                    
+                    # 3. Match Photo by GR NUMBER (Search all folders in ZIP)
+                    photo_found = None
+                    for ext in ['.jpg', '.jpeg', '.png', '.JPG', '.PNG']:
+                        search_name = f"{gr_num}{ext}"
+                        if search_name in zip_basename_map:
+                            photo_found = zip_basename_map[search_name]
+                            break
+                    
+                    if photo_found:
+                        safe_name = name.replace(' ', '_')
+                        safe_id = gr_num.replace(' ', '_')
+                        person_id = f"{safe_name}_{safe_id}"
+                        
+                        target_filename = f"{person_id}_front.jpg"
+                        target_path = os.path.join(FACES_DIR, target_filename)
+                        
+                        with zf.open(photo_found) as pf:
+                            with open(target_path, "wb") as f_out:
+                                f_out.write(pf.read())
+                        
+                        # Update face_database.json
+                        face_db[person_id] = {
+                            'name': name,
+                            'gr_number': gr_num,
+                            'image_paths': [target_path],
+                            'registered': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                        photo_count += 1
+                        
+                        # Link in SQLite
+                        db.link_student_face(stu_db_id, person_id)
+
+                except Exception as row_err:
+                    import traceback
+                    traceback.print_exc()
+                    errors.append(f"Row {index+2} ({row.get('name', '???')}): {str(row_err)}")
+            
+            with open(FACE_DB, 'w') as f:
+                json.dump(face_db, f, indent=4)
+                
+            # If we uploaded photos, we should probably clear the embedding cache
+            if photo_count > 0 and os.path.exists(EMB_CACHE):
+                os.remove(EMB_CACHE)
+                
+            msg = f"Processed {added_count} students. {photo_count} photos mapped."
+            if errors:
+                msg += f" {len(errors)} errors encountered."
+                print(f"[BulkError] {errors}")
+                
+            return jsonify({"success": True, "message": msg})
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": f"Critical Error: {str(e)}"})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -478,20 +745,19 @@ def api_group_photo_attend():
     from attendance_marker import attendance_marker
 
     for person in result.get("recognized", []):
-        emp_id = (person.get("employee_id") or "").strip()
+        gr_num = (person.get("gr_number") or "").strip()
         name   = person.get("name", "Unknown")
         try:
-            # Look up by roll number (student_id field), not integer PK
-            stu = db.get_student_by_student_id(emp_id) if emp_id else None
+            # Look up by GR number, not integer PK
+            stu = db.get_student_by_gr_number(gr_num) if gr_num else None
 
             if not stu:
-                # Auto-register the face-db person into the student table
-                print(f"[Group] Auto-registering {name} ({emp_id}) into students table")
+                print(f"[Group] Auto-registering {name} ({gr_num}) into students table")
                 dept  = "Unassigned"
-                email = f"{(emp_id or name).replace(' ','_').lower()}@student.local"
+                email = f"{(gr_num or name).replace(' ','_').lower()}@student.local"
                 try:
-                    db.add_student(emp_id or name, name, email, dept)
-                    stu = db.get_student_by_student_id(emp_id) if emp_id else None
+                    db.add_student(gr_num or name, '', name, email, dept)
+                    stu = db.get_student_by_gr_number(gr_num) if gr_num else None
                 except Exception as reg_err:
                     print(f"[Group] Auto-register failed: {reg_err}")
 
@@ -618,17 +884,17 @@ def api_confirm_attendance():
     skipped = []
 
     for person in present_list:
-        emp_id = (person.get("employee_id") or "").strip()
+        gr_num = (person.get("gr_number") or "").strip()
         name   = person.get("name", "Unknown")
         confidence = person.get("confidence", 0)
         try:
-            stu = db.get_student_by_student_id(emp_id) if emp_id else None
+            stu = db.get_student_by_gr_number(gr_num) if gr_num else None
             if not stu:
                 # Auto-register into student table
-                email = f"{(emp_id or name).replace(' ','_').lower()}@student.local"
+                email = f"{(gr_num or name).replace(' ','_').lower()}@student.local"
                 try:
-                    db.add_student(emp_id or name, name, email, "Unassigned")
-                    stu = db.get_student_by_student_id(emp_id) if emp_id else None
+                    db.add_student(gr_num or name, '', name, email, "Unassigned")
+                    stu = db.get_student_by_gr_number(gr_num) if gr_num else None
                 except Exception:
                     pass
             if stu:
@@ -702,21 +968,22 @@ def api_save_face():
     import cv2
     data = request.json
     name = data.get('name', '').strip()
-    emp_id = data.get('employee_id', '').strip() or 'NoID'
-    frames = data.get('frames', [])  # list of 3 base64 JPEGs
+    gr_number = data.get('gr_number', '').strip() or 'NoGR'
+    frames = data.get('frames', [])  # list of base64 JPEGs
     
-    if not name or len(frames) < 3:
-        return jsonify({'success': False, 'message': 'Name and 3 frames required'})
+    if not name or not frames:
+        return jsonify({'success': False, 'message': 'Name and at least 1 frame required'})
     
     try:
         safe_name = name.replace(' ', '_')
-        safe_id = emp_id.replace(' ', '_')
+        safe_id = gr_number.replace(' ', '_')
         person_id = f"{safe_name}_{safe_id}"
         os.makedirs(FACES_DIR, exist_ok=True)
         
         suffixes = ['front', 'left', 'right']
         image_paths = []
-        for frame_b64, suffix in zip(frames[:3], suffixes):
+        for i, frame_b64 in enumerate(frames):
+            suffix = suffixes[i] if i < len(suffixes) else f"extra_{i}"
             img_data = base64.b64decode(frame_b64.split(',')[-1])
             np_arr = np.frombuffer(img_data, np.uint8)
             img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -732,7 +999,7 @@ def api_save_face():
         
         db[person_id] = {
             'name': name,
-            'employee_id': emp_id,
+            'gr_number': gr_number,
             'image_paths': image_paths,
             'registered': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -767,6 +1034,24 @@ def api_delete_face():
         return jsonify({'success': True, 'message': f'{person_id} deleted. Re-train model to apply changes.'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+def augment_image(img):
+    """Generate 4 augmented versions of an image to improve recognition robustess"""
+    augments = []
+    # 1. Flip
+    augments.append(cv2.flip(img, 1))
+    # 2. Slight rotation (+5 degrees)
+    h, w = img.shape[:2]
+    M = cv2.getRotationMatrix2D((w//2, h//2), 5, 1.0)
+    augments.append(cv2.warpAffine(img, M, (w, h)))
+    # 3. Slight rotation (-5 degrees)
+    M = cv2.getRotationMatrix2D((w//2, h//2), -5, 1.0)
+    augments.append(cv2.warpAffine(img, M, (w, h)))
+    # 4. Brightness adjustment
+    alpha = 1.2 # Contrast control
+    beta = 10   # Brightness control
+    augments.append(cv2.convertScaleAbs(img, alpha=alpha, beta=beta))
+    return augments
 
 @app.route("/api/admin/train_model", methods=["POST"])
 @admin_required
@@ -807,33 +1092,41 @@ def api_train_model():
                 paths = [info['image_path']] + paths
             
             person_vecs = []
+            valid_images = []
+            
             for img_path in paths:
-                # Sanitize paths containing Windows slashes or absolute paths
+                # Sanitize paths
                 filename = os.path.basename(img_path.replace('\\', '/'))
                 abs_path = os.path.join(FACES_DIR, filename)
                 
                 if not os.path.exists(abs_path):
-                    print(f"[Train] Missing file: {abs_path}")
                     skipped += 1
                     continue
+                
+                img = cv2.imread(abs_path)
+                if img is None:
+                    errors += 1
+                    continue
+                
+                valid_images.append(img)
                 total_images += 1
+
+            # If only one image, use augmentation to improve accuracy
+            if len(valid_images) == 1:
+                base_img = valid_images[0]
+                valid_images.extend(augment_image(base_img))
+                print(f"[Train] Augmenting {person_id} (single photo)")
+
+            for img in valid_images:
                 try:
-                    img = cv2.imread(abs_path)
-                    if img is None:
-                        print(f"[Train] Could not decode image: {abs_path}")
-                        errors += 1
-                        continue
                     faces = face_app.get(img)
                     if faces:
                         best = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
                         vec = _l2_normalize(best.embedding.astype(np.float32))
                         person_vecs.append(vec)
-                        print(f"[Train] ✓ {info.get('name', person_id)} — {abs_path}")
                     else:
-                        print(f"[Train] No face detected in: {abs_path}")
                         errors += 1
-                except Exception as e:
-                    print(f"[Train] Error on {abs_path}: {e}")
+                except Exception:
                     errors += 1
             
             if person_vecs:
@@ -851,8 +1144,8 @@ def api_train_model():
             'success': True,
             'message': (
                 f'✅ Training complete! '
-                f'{len(cache)} persons embedded from {total_images} images. '
-                f'Errors/No-face: {errors}. Missing files: {skipped}.'
+                f'{len(cache)} persons embedded. '
+                f'Errors: {errors}. Missing: {skipped}.'
             )
         })
     except Exception as e:
