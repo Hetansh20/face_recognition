@@ -88,17 +88,16 @@ def admin_timetables():
     f_map      = {f[0]: f[1] for f in faculties}
     timetables = []
     for row in (db.get_all_timetables() or []):
-        # row: id, faculty_id, class_name, class_id, batch_id, subject_name, day_of_week, start_time, end_time, room_number, created_at, faculty_name
         timetables.append({
-            "id":           row[0],
-            "faculty_name": row[-1],
-            "class_name":   row[2],
-            "subject":      row[5],
-            "batch":        batch_map.get(row[4], '') if row[4] else '',
-            "day":          row[6],
-            "start":        row[7],
-            "end":          row[8],
-            "room":         row[9],
+            "id":           row["id"],
+            "faculty_name": row["faculty_name"],
+            "class_name":   row["class_name"],
+            "subject":      row["subject_name"],
+            "batch":        batch_map.get(row["batch_id"], '') if row["batch_id"] else '',
+            "day":          row["day_of_week"],
+            "start":        row["start_time"],
+            "end":          row["end_time"],
+            "room":         row["room_number"],
         })
     return render_template(
         "admin_timetables.html",
@@ -386,14 +385,15 @@ def api_admin_student_bulk_upload():
 
         # Supporting variants of column names (post-normalization)
         col_map = {
-            'gr_number': ['gr_number', 'gr_no', 'gr', 'student_id', 'roll_no', 'roll_number', 'sr_no', 'sr_number'],
-            'enrollment_number': ['enroll_no', 'enrollment_number', 'enrollment_no', 'enrollment', 'enroll'],
-            'name': ['name', 'full_name', 'student_name', 'student'],
-            'email': ['email', 'email_id'],
+            'gr_number': ['gr_number', 'gr_no', 'gr', 'student_id', 'sr_no', 'sr_number'],
+            'enrollment_number': ['enroll_no', 'enrollment_number', 'enrollment_no', 'enrollment', 'enroll', 'er_no'], 
+            'name': ['name', 'full_name', 'student_name', 'student', 'student_full_name'],
+            'email': ['email', 'email_id', 'email_personal', 'mu_email'],
             'department': ['department', 'stream', 'dept', 'specialization'],
-            'roll_number': ['roll_number', 'roll_no', 'roll'],
-            'class_name': ['class_name', 'class', 'sem_class'],
-            'batch_name': ['batch_name', 'batch', 'lab_batch']
+            'phone': ['phone', 'phone_number', 'mobile', 'contact', 'phone_no'],
+            'class_name': ['class_name', 'class', 'sem_class', 'classname'],
+            'batch_name': ['batch_name', 'batch', 'lab_batch'],
+            'semester': ['semester', 'sem']
         }
 
         # Try to find which row is the header by looking for 'gr' or 'name' variants
@@ -483,19 +483,17 @@ def api_admin_student_bulk_upload():
                         if '.' in v: v = v.split('.')[0]
                         return v if v.lower() != 'nan' else ''
 
-                    gr_num = clean_id(row['gr_number'])
-                    enroll = clean_id(row.get('enrollment_number', ''))
-                    name   = str(row['name']).strip()
-                    email  = str(row['email']).strip()
+                    gr_num = str(row.get('gr_number', '')).strip()
+                    enroll = str(row.get('enrollment_number', '')).strip()
+                    name = str(row.get('name', '')).strip()
+                    email = str(row.get('email', '')).strip()
+                    dept = str(row.get('department', 'General')).strip()
+                    phone = str(row.get('phone', '')).strip()
                     
                     if not gr_num or not name or name.lower() == 'nan': continue
                     
-                    dept  = str(row.get('department', 'Unassigned'))
                     # Handle optional class/batch/roll/phone correctly (avoid NaNs)
                     def clean(val): return val if pd.notna(val) and str(val).lower() != 'nan' else None
-                    
-                    roll  = clean(row.get('roll_number'))
-                    phone = clean(row.get('phone'))
                     
                     # Resolve IDs if names are provided
                     cid = clean(row.get('class_id'))
@@ -526,10 +524,10 @@ def api_admin_student_bulk_upload():
                         existing = db.get_student_by_email(email)
                         
                     if existing:
-                        db.update_student(existing[0], name, email, dept, gr_num, enroll, cid, bid, roll, phone)
+                        db.update_student(existing[0], name, email, dept, gr_num, enroll, cid, bid, phone)
                         stu_db_id = existing[0]
                     else:
-                        stu_db_id = db.add_student(gr_num, enroll, name, email, dept, cid, bid, roll, phone)
+                        stu_db_id = db.add_student(gr_num, enroll, name, email, dept, cid, bid, phone)
                     added_count += 1
                     
                     # 3. Match Photo by GR NUMBER (Search all folders in ZIP)
@@ -836,22 +834,19 @@ def api_multi_photo_attend():
     present_list = list(merged.values())
     present_ids  = {p["person_id"] for p in present_list}
 
-    # Build absent list: all students in face DB not recognized in any photo
-    import json
-    face_db = {}
-    if os.path.exists(FACE_DB):
-        with open(FACE_DB) as f:
-            face_db = json.load(f)
-
-    absent_list = [
-        {
-            "person_id":   pid,
-            "name":        info.get("name", pid),
-            "employee_id": info.get("employee_id", ""),
-        }
-        for pid, info in face_db.items()
-        if pid not in present_ids
-    ]
+    # Build absent list: only students in the assigned class/batch for this timetable
+    tid = session_info["timetable_id"]
+    students, _ = timetable_manager.get_class_students(tid)
+    
+    absent_list = []
+    for s in (students or []):
+        pid = s['face_pid']
+        if pid and pid not in present_ids:
+            absent_list.append({
+                "person_id":   pid,
+                "name":        s['name'],
+                "employee_id": s['gr_number'] or s['student_id'] or '',
+            })
 
     return jsonify({
         "success":          True,

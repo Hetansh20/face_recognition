@@ -363,14 +363,14 @@ class Database:
     # ──────────────────────── Students ───────────────────────────────
 
     def add_student(self, gr_number, enrollment_number, name, email, department,
-                    class_id=None, batch_id=None, roll_number=None, phone=None, face_pid=None):
+                    class_id=None, batch_id=None, phone=None, face_pid=None):
         self.connect()
         try:
             self.cursor.execute('''
                 INSERT INTO students
-                    (gr_number, enrollment_number, name, email, department, class_id, batch_id, roll_number, phone, face_pid, student_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (gr_number, enrollment_number, name, email, department, class_id, batch_id, roll_number, phone, face_pid, gr_number))
+                    (gr_number, enrollment_number, name, email, department, class_id, batch_id, phone, face_pid, student_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (gr_number, enrollment_number, name, email, department, class_id, batch_id, phone, face_pid, gr_number))
             self.conn.commit()
             sid = self.cursor.lastrowid; self.disconnect(); return sid
         except sqlite3.IntegrityError as e:
@@ -379,15 +379,15 @@ class Database:
 
     def update_student(self, student_db_id, name, email, department,
                        gr_number=None, enrollment_number=None,
-                       class_id=None, batch_id=None, roll_number=None, phone=None, face_pid=None):
+                       class_id=None, batch_id=None, phone=None, face_pid=None):
         self.connect()
         self.cursor.execute('''
             UPDATE students
             SET name=?, email=?, department=?, gr_number=?, enrollment_number=?,
-                class_id=?, batch_id=?, roll_number=?, phone=?, face_pid=?
+                class_id=?, batch_id=?, phone=?, face_pid=?
             WHERE id=?
         ''', (name, email, department, gr_number, enrollment_number, 
-              class_id, batch_id, roll_number, phone, face_pid, student_db_id))
+              class_id, batch_id, phone, face_pid, student_db_id))
         self.conn.commit(); self.disconnect()
 
     def delete_student(self, student_db_id):

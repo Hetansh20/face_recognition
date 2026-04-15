@@ -62,8 +62,8 @@
 <table class="student-table" id="studentTable">
     <thead>
         <tr>
-            <th>Sr. No.</th><th>Name</th><th>Class</th><th>Batch</th>
-            <th>GR No.</th><th>Enrollment</th><th>Email</th><th>Face</th><th>Actions</th>
+            <th>Sr. No.</th><th>Full Name</th><th>Class</th><th>Batch</th>
+            <th>GR No.</th><th>Enrollment</th><th>Email</th><th>Phone</th><th>Face</th><th>Actions</th>
         </tr>
     </thead>
     <tbody id="studentBody">
@@ -88,6 +88,7 @@
             <td><code>{{ stu.gr_number or '—' }}</code></td>
             <td><code>{{ stu.enrollment_number or '—' }}</code></td>
             <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu.email }}</td>
+            <td style="font-size:0.82rem;">{{ stu.phone or '—' }}</td>
             <td>
                 {% if stu.face_pid %}
                     <span class="badge badge-green">✓</span>
@@ -164,8 +165,8 @@
         <input type="hidden" id="stuId">
 
         <div class="form-grid-3" style="margin-bottom:0.75rem;">
-            <div class="form-group"><label>GR Number (Match Photo)</label><input id="iGrNumber" placeholder="e.g. 131322"></div>
-            <div class="form-group"><label>Enrollment Number</label><input id="iEnrollment" placeholder="e.g. 92410133031"></div>
+            <div class="form-group"><label>GR Number</label><input id="iGrNumber" placeholder="e.g. 131322"></div>
+            <div class="form-group"><label>Enrollment Number</label><input id="iEnrollment" placeholder="92410133031"></div>
             <div class="form-group"><label>Full Name</label><input id="iName" placeholder="Full name"></div>
         </div>
         <div class="form-grid-2" style="margin-bottom:0.75rem;">
@@ -195,9 +196,9 @@
                 </select>
             </div>
         </div>
-        <div class="form-grid-2" style="margin-bottom:0.75rem;">
-            <div class="form-group"><label>Roll Number</label><input id="iRoll" placeholder="Class roll number"></div>
-            <div class="form-group"><label>Phone</label><input id="iPhone" placeholder="10-digit phone"></div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+            <label>Phone Number</label>
+            <input id="iPhone" placeholder="10-digit phone number">
         </div>
 
         <p id="stuModalMsg" style="font-size:0.85rem; margin-bottom:0.5rem;"></p>
@@ -292,7 +293,7 @@ function searchStudents() {
 function openAddModal() {
     document.getElementById('stuId').value = '';
     document.getElementById('stuModalTitle').textContent = 'Add New Student';
-    ['iGrNumber','iEnrollment','iName','iEmail','iDept','iRoll','iPhone'].forEach(id => {
+    ['iGrNumber','iEnrollment','iName','iEmail','iDept','iPhone'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -331,7 +332,6 @@ async function openEdit(btn) {
         document.getElementById('iBatch').innerHTML = '<option value="">Select</option>';
     }
 
-    document.getElementById('iRoll').value       = stu.roll_number || '';
     document.getElementById('iPhone').value      = stu.phone || '';
     document.getElementById('stuModalMsg').textContent = '';
     document.getElementById('stuModal').style.display = 'flex';
@@ -357,7 +357,7 @@ async function loadBatchesInModal(classId) {
 }
 
 async function saveStudent() {
-    const id = editingId;
+    const id = document.getElementById('stuId').value;
     const payload = {
         name:        document.getElementById('iName').value.trim(),
         email:       document.getElementById('iEmail').value.trim(),
@@ -366,11 +366,10 @@ async function saveStudent() {
         department:  document.getElementById('iDept').value.trim(),
         class_id:    parseInt(document.getElementById('iClass').value) || null,
         batch_id:    parseInt(document.getElementById('iBatch').value) || null,
-        roll_number: document.getElementById('iRoll').value.trim() || null,
         phone:       document.getElementById('iPhone').value.trim() || null,
     };
     if (!payload.gr_number || !payload.name || !payload.email)
-        return setModalMsg('stuModalMsg', 'GR Number, Name and Email are required.', 'red');
+        return setModalMsg('stuModalMsg', 'GR Number, Full Name and Email are required.', 'red');
 
     const url = id ? '/api/admin/student/update' : '/api/admin/student/add';
     if (id) payload.id = parseInt(id);
