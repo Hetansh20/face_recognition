@@ -16,15 +16,15 @@ class AuthManager:
         if not faculty:
             return None, "Invalid passcode or Faculty not found"
         
-        if not faculty[5]:  # Check if active
+        if not faculty['is_active']:  # Check if active
             return None, "Faculty account is inactive"
         
         # Create session
         session_token = secrets.token_urlsafe(32)
         self.sessions[session_token] = {
-            'faculty_id': faculty[0],
-            'email': faculty[2],
-            'name': faculty[1],
+            'faculty_id': faculty['id'],
+            'email': faculty['email'],
+            'name': faculty['name'],
             'created_at': datetime.now(),
             'expires_at': datetime.now() + timedelta(hours=8)
         }
@@ -65,9 +65,9 @@ class AuthManager:
         current_time_str = current_time.strftime("%H:%M")
         
         for timetable in faculty_timetables:
-            timetable_day = timetable[3]  # day_of_week
-            start_time = timetable[4]
-            end_time = timetable[5]
+            timetable_day = timetable['day_of_week']
+            start_time = timetable['start_time']
+            end_time = timetable['end_time']
             
             if timetable_day.lower() == current_day.lower():
                 if start_time <= current_time_str <= end_time:

@@ -2,141 +2,292 @@
 {% block title %}College Structure{% endblock %}
 {% block content %}
 <style>
-.struct-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
-.struct-card { background:#161b22; border:1px solid var(--border-color); border-radius:10px; padding:1.5rem; }
-.struct-card h3 { font-size:1rem; margin-bottom:1rem; color:var(--accent-blue); }
-.form-row { display:flex; gap:0.5rem; margin-bottom:0.75rem; }
-.form-row input, .form-row select { flex:1; }
-.chip-list { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.75rem; }
-.chip {
-    display:inline-flex; align-items:center; gap:0.4rem;
-    background:#21262d; border:1px solid var(--border-color);
-    padding:3px 10px; border-radius:20px; font-size:0.82rem;
+/* PREMIUM DASHBOARD STYLING */
+body { background-color: #0d1117; }
+
+.dashboard-container { 
+    margin-top: 2rem; 
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
 }
-.chip button { background:none; border:none; color:#da3633; cursor:pointer; font-size:14px; line-height:1; padding:0; }
-.cascade-select { display:flex; gap:0.5rem; margin-bottom:0.75rem; }
+
+.panorama-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); 
+    gap: 1.5rem; 
+    margin-top: 2rem; 
+}
+
+/* Glassmorphism Card Style */
+.glass-pane {
+    background: rgba(22, 27, 34, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.glass-pane:hover {
+    border-color: rgba(63, 185, 80, 0.3);
+}
+
+.pane-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.8rem;
+}
+.pane-header h3 { font-size: 1.1rem; color: #f0f6fc; margin: 0; font-weight: 600; }
+.pane-icon { 
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+}
+
+/* Form Styling */
+.input-group { margin-bottom: 1.25rem; }
+.input-group label { display: block; font-size: 0.75rem; color: #8b949e; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+input, select {
+    width: 100%;
+    background: rgba(13, 17, 23, 0.8);
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    color: #c9d1d9;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+input:focus, select:focus {
+    outline: none;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
+.btn-slim {
+    width: 100%;
+    background: linear-gradient(180deg, #3fb950 0%, #2ea043 100%);
+    color: white;
+    border: 1px solid rgba(1, 4, 9, 0.15);
+    border-radius: 8px;
+    padding: 0.6rem;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+.btn-slim:hover { opacity: 0.9; }
+
+/* Managed Items List */
+.item-scroll {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 1rem;
+    padding-right: 0.5rem;
+}
+.item-scroll::-webkit-scrollbar { width: 4px; }
+.item-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+
+.modern-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(33, 38, 45, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0.5rem 0.8rem;
+    border-radius: 10px;
+    margin-bottom: 0.6rem;
+    font-size: 0.85rem;
+    color: #e6edf3;
+    animation: fadeIn 0.3s ease-out;
+}
+.modern-pill .actions { display: flex; gap: 0.5rem; }
+.modern-pill .del-btn {
+    background: none; border: none; color: #8b949e; cursor: pointer; padding: 2px;
+    font-size: 14px;
+}
+.modern-pill .del-btn:hover { color: #f85149; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+.empty-state {
+    color: #484f58; font-style: italic; font-size: 0.82rem; text-align: center; margin-top: 2rem;
+}
 </style>
 
-<div style="margin-top:1.5rem;">
-    <h2>🏫 College Structure</h2>
-    <p style="color:var(--text-muted);">Set up Semesters → Classes → Batches. Once created, assign students and timetables to them.</p>
-</div>
-
-<div class="struct-grid">
-
-    <!-- SEMESTERS -->
-    <div class="struct-card">
-        <h3>📚 Semesters</h3>
-        <div class="form-row">
-            <input id="semNum" type="number" min="1" max="8" placeholder="No. (1–8)">
-            <input id="semLabel" type="text" placeholder='Label e.g. "Sem 6"'>
-        </div>
-        <button class="btn btn-primary" style="width:100%;font-size:0.85rem;" onclick="addSemester()">+ Add Semester</button>
-        <p id="semMsg" style="font-size:0.8rem;margin-top:0.4rem;"></p>
-        <div class="chip-list" id="semChips">
-            {% for s in semesters %}
-            <span class="chip">
-                Sem {{ s[1] }} — {{ s[2] }}
-                <button onclick="deleteSemester({{ s[0] }}, this)" title="Delete">✕</button>
-            </span>
-            {% endfor %}
-        </div>
+<div class="dashboard-container">
+    <div>
+        <h2 style="font-weight: 700; color: #f0f6fc;">🏫 Structure Dashboard</h2>
+        <p style="color: #8b949e;">Configure academic levels, semesters, classes and batches in real-time.</p>
     </div>
 
-    <!-- CLASSES -->
-    <div class="struct-card">
-        <h3>🏷️ Classes</h3>
-        <div class="form-row">
-            <select id="classSem" onchange="loadClasses(this.value)">
-                <option value="">Select Semester</option>
+    <div class="panorama-grid">
+        
+        <!-- PANE 1: SEMESTERS -->
+        <div class="glass-pane">
+            <div class="pane-header">
+                <div class="pane-icon" style="background: rgba(189, 147, 249, 0.1); color: #bd93f9;">📚</div>
+                <h3>Semesters</h3>
+            </div>
+            
+            <div class="input-group">
+                <label>Classification</label>
+                <select id="semLevel">
+                    <option value="Degree">Degree</option>
+                    <option value="Diploma">Diploma</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Semester Number</label>
+                <input id="semNum" type="number" min="1" max="8" placeholder="e.g. 6">
+            </div>
+            <button class="btn-slim" onclick="addSemester()">+ Register Semester</button>
+            <p id="semMsg" style="font-size:0.75rem; text-align:center; margin-top:0.5rem;"></p>
+
+            <div class="item-scroll" id="semChips">
                 {% for s in semesters %}
-                <option value="{{ s[0] }}">Sem {{ s[1] }} — {{ s[2] }}</option>
+                <div class="modern-pill">
+                    <span>
+                        <span style="color:#bd93f9;font-weight:600;">{{ s[5] or s[3] or 'Degree' }}</span>
+                        <span style="color:#8b949e;margin:0 5px;">•</span>
+                        Sem {{ s[1] }}
+                    </span>
+                    <button class="del-btn" data-id="{{ s[0] }}" onclick="deleteSemester(this)">✕</button>
+                </div>
+                {% else %}
+                <div class="empty-state">No semesters registered yet.</div>
                 {% endfor %}
-            </select>
+            </div>
         </div>
-        <div class="form-row">
-            <input id="className" type="text" placeholder='Name e.g. "6EK1"'>
-            <input id="classSection" type="text" placeholder='Section e.g. "EK"' style="max-width:100px;">
-        </div>
-        <button class="btn btn-primary" style="width:100%;font-size:0.85rem;" onclick="addClass()">+ Add Class</button>
-        <p id="classMsg" style="font-size:0.8rem;margin-top:0.4rem;"></p>
-        <div class="chip-list" id="classChips"></div>
-    </div>
 
-    <!-- BATCHES -->
-    <div class="struct-card">
-        <h3>👥 Batches</h3>
-        <div class="cascade-select">
-            <select id="batchSem" onchange="loadClassesForBatch(this.value)" style="flex:1;">
-                <option value="">Semester</option>
-                {% for s in semesters %}
-                <option value="{{ s[0] }}">Sem {{ s[1] }}</option>
-                {% endfor %}
-            </select>
-            <select id="batchClass" onchange="loadBatches(this.value)" style="flex:1;">
-                <option value="">Class</option>
-            </select>
-        </div>
-        <div class="form-row">
-            <input id="batchName" type="text" placeholder='Batch e.g. "A", "B", "Lab1"'>
-        </div>
-        <button class="btn btn-primary" style="width:100%;font-size:0.85rem;" onclick="addBatch()">+ Add Batch</button>
-        <p id="batchMsg" style="font-size:0.8rem;margin-top:0.4rem;"></p>
-        <div class="chip-list" id="batchChips"></div>
-    </div>
+        <!-- PANE 2: CLASSES -->
+        <div class="glass-pane">
+            <div class="pane-header">
+                <div class="pane-icon" style="background: rgba(80, 250, 123, 0.1); color: #50fa7b;">🏷️</div>
+                <h3>Classes</h3>
+            </div>
+            
+            <div class="input-group">
+                <label>Parent Semester</label>
+                <select id="classSem" onchange="loadClasses(this.value)">
+                    <option value="">Choose Semester...</option>
+                    {% for s in semesters %}
+                    <option value="{{ s[0] }}">{{ s[5] or s[3] or 'Degree' }} — Sem {{ s[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Class Name</label>
+                <input id="className" type="text" placeholder="e.g. 6EK1">
+            </div>
+            <button class="btn-slim" onclick="addClass()" style="background: linear-gradient(180deg, #50fa7b 0%, #44cf6c 100%); color:#0d1117;">+ Create Class</button>
+            <p id="classMsg" style="font-size:0.75rem; text-align:center; margin-top:0.5rem;"></p>
 
+            <div class="item-scroll" id="classChips">
+                <div class="empty-state">Select a semester to manage classes.</div>
+            </div>
+        </div>
+
+        <!-- PANE 3: BATCHES -->
+        <div class="glass-pane">
+            <div class="pane-header">
+                <div class="pane-icon" style="background: rgba(139, 233, 253, 0.1); color: #8be9fd;">👥</div>
+                <h3>Batches</h3>
+            </div>
+            
+            <div class="input-group">
+                <label>Step 1: Semester</label>
+                <select id="batchSem" onchange="loadClassesForBatch(this.value)">
+                    <option value="">Identify Semester...</option>
+                    {% for s in semesters %}
+                    <option value="{{ s[0] }}">{{ s[5] or s[3] or 'Degree' }} — Sem {{ s[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Step 2: Class</label>
+                <select id="batchClass" onchange="loadBatches(this.value)">
+                    <option value="">Identify Class...</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Batch Code</label>
+                <input id="batchName" type="text" placeholder="e.g. A, B or Lab-1">
+            </div>
+            <button class="btn-slim" onclick="addBatch()" style="background: linear-gradient(180deg, #8be9fd 0%, #72cce3 100%); color:#0d1117;">+ Define Batch</button>
+            <p id="batchMsg" style="font-size:0.75rem; text-align:center; margin-top:0.5rem;"></p>
+
+            <div class="item-scroll" id="batchChips">
+                <div class="empty-state">Select a class to manage batches.</div>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 <script>
-// ── Semesters ────────────────────────────────────────────────
+// ── Core Logic ────────────────────────────────────────────────
 async function addSemester() {
+    const level = document.getElementById('semLevel').value;
     const num   = document.getElementById('semNum').value;
-    const label = document.getElementById('semLabel').value.trim();
-    if (!num || !label) return setMsg('semMsg', 'Fill both fields.', 'red');
-    const r = await post('/api/admin/semester/add', { number: parseInt(num), label });
+    if (!num) return setMsg('semMsg', 'Missing semester number.', 'red');
+    const r = await post('/api/admin/semester/add', { number: parseInt(num), label: '', level: level });
     setMsg('semMsg', r.message, r.success ? 'green' : 'red');
-    if (r.success) {
-        appendChip('semChips', `Sem ${num} — ${label}`, () => deleteSemester(r.id));
-        document.getElementById('semNum').value = '';
-        document.getElementById('semLabel').value = '';
-    }
-}
-async function deleteSemester(id, btn) {
-    if (!confirm('Delete semester and all its classes/batches?')) return;
-    const r = await post('/api/admin/semester/delete', { id });
-    if (r.success && btn) btn.closest('.chip').remove();
+    if (r.success) setTimeout(() => location.reload(), 800);
 }
 
-// ── Classes ──────────────────────────────────────────────────
+async function deleteSemester(btn) {
+    const id = btn.dataset.id;
+    if (!confirm('Delete semester and all associated records?')) return;
+    const r = await post('/api/admin/semester/delete', { id: parseInt(id) });
+    if (r.success && btn) btn.closest('.modern-pill').remove();
+}
+
 async function loadClasses(semId) {
-    if (!semId) return;
-    const r = await post('/api/admin/classes', { semester_id: parseInt(semId) });
     const box = document.getElementById('classChips');
+    if (!semId) {
+        box.innerHTML = '<div class="empty-state">Select a semester to manage classes.</div>';
+        return;
+    }
+    const r = await post('/api/admin/classes', { semester_id: parseInt(semId) });
+    if (r.classes.length === 0) {
+        box.innerHTML = '<div class="empty-state">No classes found here.</div>';
+        return;
+    }
     box.innerHTML = r.classes.map(c =>
-        `<span class="chip">${c.name}
-          <button onclick="deleteClass(${c.id}, this)">✕</button>
-        </span>`
+        `<div class="modern-pill">
+            <span>${c.name}</span>
+            <button class="del-btn" onclick="deleteClass(${c.id}, this)">✕</button>
+        </div>`
     ).join('');
 }
+
 async function addClass() {
-    const semId   = document.getElementById('classSem').value;
-    const name    = document.getElementById('className').value.trim();
-    const section = document.getElementById('classSection').value.trim();
-    if (!semId || !name) return setMsg('classMsg', 'Select semester and enter class name.', 'red');
-    const r = await post('/api/admin/class/add', { semester_id: parseInt(semId), name, section });
+    const semId = document.getElementById('classSem').value;
+    const name  = document.getElementById('className').value.trim();
+    if (!semId || !name) return setMsg('classMsg', 'Select semester and name.', 'red');
+    const r = await post('/api/admin/class/add', { semester_id: parseInt(semId), name });
     setMsg('classMsg', r.message, r.success ? 'green' : 'red');
     if (r.success) { loadClasses(semId); document.getElementById('className').value = ''; }
 }
+
 async function deleteClass(id, btn) {
-    if (!confirm('Delete class?')) return;
+    if (!confirm('Delete this class?')) return;
     const r = await post('/api/admin/class/delete', { id });
-    if (r.success && btn) btn.closest('.chip').remove();
+    if (r.success && btn) btn.closest('.modern-pill').remove();
 }
 
-// ── Batches ──────────────────────────────────────────────────
 async function loadClassesForBatch(semId) {
     const sel = document.getElementById('batchClass');
-    sel.innerHTML = '<option value="">Class</option>';
+    sel.innerHTML = '<option value="">Identify Class...</option>';
+    document.getElementById('batchChips').innerHTML = '<div class="empty-state">Select a class to manage batches.</div>';
     if (!semId) return;
     const r = await post('/api/admin/classes', { semester_id: parseInt(semId) });
     r.classes.forEach(c => {
@@ -144,46 +295,51 @@ async function loadClassesForBatch(semId) {
         o.value = c.id; o.textContent = c.name; sel.appendChild(o);
     });
 }
+
 async function loadBatches(classId) {
-    if (!classId) return;
-    const r = await post('/api/admin/batches', { class_id: parseInt(classId) });
     const box = document.getElementById('batchChips');
+    if (!classId) {
+        box.innerHTML = '<div class="empty-state">Select a class to manage batches.</div>';
+        return;
+    }
+    const r = await post('/api/admin/batches', { class_id: parseInt(classId) });
+    if (r.batches.length === 0) {
+        box.innerHTML = '<div class="empty-state">No batches created yet.</div>';
+        return;
+    }
     box.innerHTML = r.batches.map(b =>
-        `<span class="chip">Batch ${b.name}
-          <button onclick="deleteBatch(${b.id}, this)">✕</button>
-        </span>`
+        `<div class="modern-pill">
+            <span>Batch ${b.name}</span>
+            <button class="del-btn" onclick="deleteBatch(${b.id}, this)">✕</button>
+        </div>`
     ).join('');
 }
+
 async function addBatch() {
     const classId = document.getElementById('batchClass').value;
     const name    = document.getElementById('batchName').value.trim();
-    if (!classId || !name) return setMsg('batchMsg', 'Select class and enter batch name.', 'red');
+    if (!classId || !name) return setMsg('batchMsg', 'Selections incomplete.', 'red');
     const r = await post('/api/admin/batch/add', { class_id: parseInt(classId), name });
     setMsg('batchMsg', r.message, r.success ? 'green' : 'red');
     if (r.success) { loadBatches(classId); document.getElementById('batchName').value = ''; }
 }
+
 async function deleteBatch(id, btn) {
-    if (!confirm('Delete batch?')) return;
+    if (!confirm('Delete this batch?')) return;
     const r = await post('/api/admin/batch/delete', { id });
-    if (r.success && btn) btn.closest('.chip').remove();
+    if (r.success && btn) btn.closest('.modern-pill').remove();
 }
 
 // ── Helpers ───────────────────────────────────────────────────
 function setMsg(id, msg, color) {
     const el = document.getElementById(id);
     el.textContent = msg;
-    el.style.color = color === 'green' ? '#2ea043' : '#da3633';
+    el.style.color = color === 'green' ? '#50fa7b' : '#ff5555';
+    setTimeout(() => { if(el.textContent === msg) el.textContent = ''; }, 3000);
 }
 async function post(url, body) {
     const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     return res.json();
-}
-function appendChip(containerId, label, onDelete) {
-    const box  = document.getElementById(containerId);
-    const span = document.createElement('span');
-    span.className = 'chip';
-    span.innerHTML = `${label} <button onclick="(${onDelete})()">✕</button>`;
-    box.appendChild(span);
 }
 </script>
 {% endblock %}

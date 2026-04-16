@@ -21,6 +21,7 @@ class Database:
 
     def connect(self):
         self.conn   = sqlite3.connect(DB_PATH)
+        self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
 
     def disconnect(self):
@@ -54,7 +55,8 @@ class Database:
             CREATE TABLE IF NOT EXISTS semesters (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 number     INTEGER UNIQUE NOT NULL,
-                label      TEXT NOT NULL,
+                label      TEXT,
+                level      TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -87,18 +89,20 @@ class Database:
         # Students — extended with class/batch/roll/phone
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS students (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id  TEXT UNIQUE NOT NULL,
-                name        TEXT NOT NULL,
-                email       TEXT UNIQUE NOT NULL,
-                department  TEXT NOT NULL,
-                class_id    INTEGER,
-                batch_id    INTEGER,
-                roll_number TEXT,
-                phone       TEXT,
-                face_pid    TEXT,
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active   BOOLEAN DEFAULT 1,
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                gr_number         TEXT UNIQUE,
+                enrollment_number TEXT UNIQUE,
+                name              TEXT NOT NULL,
+                email             TEXT UNIQUE NOT NULL,
+                department        TEXT NOT NULL,
+                class_id          INTEGER,
+                batch_id          INTEGER,
+                roll_number       TEXT,
+                phone             TEXT,
+                face_pid          TEXT,
+                created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active         BOOLEAN DEFAULT 1,
+                student_id        TEXT, -- Legacy field, kept for compatibility during migration
                 FOREIGN KEY (class_id)  REFERENCES classes(id),
                 FOREIGN KEY (batch_id)  REFERENCES batches(id)
             )
@@ -163,24 +167,49 @@ class Database:
         ''')
 
         # ── Safe migrations for old columns ──────────────────────────
+        self._add_column_if_missing("students",   "gr_number",   "TEXT")
+        self._add_column_if_missing("students",   "enrollment_number", "TEXT")
         self._add_column_if_missing("students",   "class_id",    "INTEGER")
         self._add_column_if_missing("students",   "batch_id",    "INTEGER")
         self._add_column_if_missing("students",   "roll_number", "TEXT")
         self._add_column_if_missing("students",   "phone",       "TEXT")
         self._add_column_if_missing("students",   "face_pid",    "TEXT")
+        
+        self.cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_stu_gr ON students(gr_number)")
+        self.cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_stu_enroll ON students(enrollment_number)")
+
         self._add_column_if_missing("timetables", "class_id",    "INTEGER")
         self._add_column_if_missing("timetables", "batch_id",    "INTEGER")
         self._add_column_if_missing("timetables", "subject_name","TEXT")
+
+        # ── Data Migration: Copy student_id to gr_number if empty ─────
+        try:
+            self.cursor.execute('''
+                UPDATE students 
+                SET gr_number = student_id 
+                WHERE (gr_number IS NULL OR gr_number = '') AND (student_id IS NOT NULL AND student_id != '')
+            ''')
+        except:
+            pass
+
+        # Simplified schema: level directly on semesters
+        self._add_column_if_missing("semesters",  "level",   "TEXT")
 
         self.conn.commit()
         self.disconnect()
 
     def _add_column_if_missing(self, table, column, col_type):
         """ALTER TABLE … ADD COLUMN safely (SQLite-safe)."""
-        try:
-            self.cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
+        self.cursor.execute(f"PRAGMA table_info({table})")
+        columns = [row[1] for row in self.cursor.fetchall()]
+        if column not in columns:
+            try:
+                # Remove UNIQUE for ALTER TABLE as SQLite doesn't support it
+                clean_type = col_type.replace('UNIQUE', '').strip()
+                self.cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {clean_type}")
+                print(f"[DB Migration] Added column {column} to {table}")
+            except Exception as e:
+                print(f"[DB Migration Error] Failed to add column {column} to {table}: {e}")
 
     # ──────────────────────── Utilities ──────────────────────────────
 
@@ -244,11 +273,11 @@ class Database:
 
     # ──────────────────────── Semesters ──────────────────────────────
 
-    def add_semester(self, number, label):
+    def add_semester(self, number, label=None, level=None):
         self.connect()
         try:
             self.cursor.execute(
-                'INSERT INTO semesters (number, label) VALUES (?, ?)', (number, label)
+                'INSERT INTO semesters (number, label, level) VALUES (?, ?, ?)', (number, label, level)
             )
             self.conn.commit()
             sid = self.cursor.lastrowid; self.disconnect(); return sid
@@ -267,12 +296,11 @@ class Database:
 
     # ──────────────────────── Classes ────────────────────────────────
 
-    def add_class(self, semester_id, name, section=None):
+    def add_class(self, semester_id, name):
         self.connect()
         try:
             self.cursor.execute(
-                'INSERT INTO classes (semester_id, name, section) VALUES (?, ?, ?)',
-                (semester_id, name, section)
+                'INSERT INTO classes (semester_id, name) VALUES (?, ?)', (semester_id, name)
             )
             self.conn.commit()
             cid = self.cursor.lastrowid; self.disconnect(); return cid
@@ -334,30 +362,32 @@ class Database:
 
     # ──────────────────────── Students ───────────────────────────────
 
-    def add_student(self, student_id, name, email, department,
-                    class_id=None, batch_id=None, roll_number=None, phone=None, face_pid=None):
+    def add_student(self, gr_number, enrollment_number, name, email, department,
+                    class_id=None, batch_id=None, phone=None, face_pid=None):
         self.connect()
         try:
             self.cursor.execute('''
                 INSERT INTO students
-                    (student_id, name, email, department, class_id, batch_id, roll_number, phone, face_pid)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (student_id, name, email, department, class_id, batch_id, roll_number, phone, face_pid))
+                    (gr_number, enrollment_number, name, email, department, class_id, batch_id, phone, face_pid, student_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (gr_number, enrollment_number, name, email, department, class_id, batch_id, phone, face_pid, gr_number))
             self.conn.commit()
             sid = self.cursor.lastrowid; self.disconnect(); return sid
         except sqlite3.IntegrityError as e:
             self.disconnect()
-            raise Exception(f"Student with this ID or email already exists: {e}")
+            raise Exception(f"Student with this GR or Enrollment already exists: {e}")
 
     def update_student(self, student_db_id, name, email, department,
-                       class_id=None, batch_id=None, roll_number=None, phone=None, face_pid=None):
+                       gr_number=None, enrollment_number=None,
+                       class_id=None, batch_id=None, phone=None, face_pid=None):
         self.connect()
         self.cursor.execute('''
             UPDATE students
-            SET name=?, email=?, department=?, class_id=?, batch_id=?,
-                roll_number=?, phone=?, face_pid=?
+            SET name=?, email=?, department=?, gr_number=?, enrollment_number=?,
+                class_id=?, batch_id=?, phone=?, face_pid=?
             WHERE id=?
-        ''', (name, email, department, class_id, batch_id, roll_number, phone, face_pid, student_db_id))
+        ''', (name, email, department, gr_number, enrollment_number, 
+              class_id, batch_id, phone, face_pid, student_db_id))
         self.conn.commit(); self.disconnect()
 
     def delete_student(self, student_db_id):
@@ -365,22 +395,37 @@ class Database:
         self.cursor.execute('UPDATE students SET is_active=0 WHERE id=?', (student_db_id,))
         self.conn.commit(); self.disconnect()
 
+    def clear_all_students(self):
+        """DANGER: Permanently deletes ALL students, attendance, and encodings."""
+        self.connect()
+        try:
+            self.cursor.execute('DELETE FROM attendance')
+            self.cursor.execute('DELETE FROM facial_encodings')
+            self.cursor.execute('DELETE FROM students')
+            self.conn.commit()
+        finally:
+            self.disconnect()
+
     def get_student_by_id(self, student_db_id):
         self.connect()
-        self.cursor.execute(
-            '''SELECT id, student_id, name, email, department,
-                      class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
-               FROM students WHERE id=?''', (student_db_id,))
+        self.cursor.execute('SELECT * FROM students WHERE id=?', (student_db_id,))
         r = self.cursor.fetchone(); self.disconnect(); return r
 
-    def get_student_by_student_id(self, student_id):
+    def get_student_by_gr_number(self, gr_number):
         self.connect()
-        self.cursor.execute(
-            '''SELECT id, student_id, name, email, department,
-                      class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
-               FROM students WHERE student_id=?''', (student_id,))
+        self.cursor.execute('SELECT * FROM students WHERE gr_number=?', (gr_number,))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
+    def get_student_by_enrollment(self, enrollment):
+        if not enrollment: return None
+        self.connect()
+        self.cursor.execute('SELECT * FROM students WHERE enrollment_number=?', (enrollment,))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
+    def get_student_by_email(self, email):
+        if not email: return None
+        self.connect()
+        self.cursor.execute('SELECT * FROM students WHERE email=?', (email,))
         r = self.cursor.fetchone(); self.disconnect(); return r
 
     def get_all_students(self):
@@ -417,14 +462,12 @@ class Database:
     def search_students(self, query):
         self.connect()
         q = f"%{query}%"
-        self.cursor.execute(
-            '''SELECT id, student_id, name, email, department,
-                      class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
-               FROM students
-               WHERE is_active=1
-                 AND (name LIKE ? OR student_id LIKE ? OR email LIKE ? OR roll_number LIKE ?)
-               ORDER BY name''', (q, q, q, q))
+        self.cursor.execute('''
+            SELECT * FROM students
+            WHERE is_active=1
+              AND (name LIKE ? OR gr_number LIKE ? OR enrollment_number LIKE ? OR email LIKE ? OR roll_number LIKE ?)
+            ORDER BY name
+        ''', (q, q, q, q, q))
         r = self.cursor.fetchall(); self.disconnect(); return r
 
     def link_student_face(self, student_db_id, face_pid):
@@ -516,7 +559,7 @@ class Database:
             "SELECT * FROM students WHERE is_active=1 AND face_pid IS NOT NULL AND face_pid != ''"
         )
         rows = self.cursor.fetchall(); self.disconnect()
-        return {row[9]: row for row in rows}   # index 9 = face_pid column
+        return {row['face_pid']: row for row in rows}
 
     # ──────────────────────── Facial Encodings ───────────────────────
 
@@ -552,7 +595,7 @@ class Database:
         self.connect()
         self.cursor.execute('''
             SELECT a.id, a.student_id, a.timetable_id, a.timestamp, a.status, a.confidence_score,
-                   s.student_id as student_code, s.name, s.email
+                   s.gr_number as gr_code, s.name, s.email
             FROM attendance a
             JOIN students s ON a.student_id = s.id
             WHERE a.timetable_id = ?

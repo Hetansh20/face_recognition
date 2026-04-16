@@ -54,7 +54,11 @@
         <h2>🎓 Student Management</h2>
         <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">Register, edit and map students to their class and batch.</p>
     </div>
-    <button class="btn btn-primary" onclick="openAddModal()">+ Add Student</button>
+    <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-outline" style="color:#da3633; border-color:#da3633;" onclick="clearAllStudents()">🗑️ Clear All</button>
+        <button class="btn btn-outline" onclick="openBulkModal()">📤 Bulk Upload</button>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Add Student</button>
+    </div>
 </div>
 
 <div class="section-tabs">
@@ -80,26 +84,47 @@
 <table class="student-table" id="studentTable">
     <thead>
         <tr>
-            <th>Student ID</th><th>Name</th><th>Class</th><th>Batch</th>
-            <th>Roll No.</th><th>Email</th><th>Face</th><th>Actions</th>
+            <th>Sr. No.</th><th>Full Name</th><th>Class</th><th>Batch</th>
+            <th>GR No.</th><th>Enrollment</th><th>Email</th><th>Phone</th><th>Face</th><th>Actions</th>
         </tr>
     </thead>
     <tbody id="studentBody">
         {% for stu in students %}
-        <tr id="row-{{ stu[0] }}">
-            <td><code>{{ stu[1] }}</code></td>
-            <td>{{ stu[2] }}</td>
-            <td>{% if stu[5] %}<span class="badge badge-blue">{{ class_map.get(stu[5], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
-            <td>{% if stu[6] %}<span class="badge badge-green">Batch {{ batch_map.get(stu[6], '?') }}</span>{% else %}<span class="badge badge-gray">—</span>{% endif %}</td>
-            <td>{{ stu[7] or '—' }}</td>
-            <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu[3] }}</td>
-            <td>{% if stu[9] %}<span class="badge badge-green">✓</span>{% else %}<span class="badge badge-gray">✗</span>{% endif %}</td>
+        <tr id="row-{{ stu.id }}" data-class-id="{{ stu.class_id or '' }}">
+            <td style="color:var(--text-muted); font-size:0.85rem;">{{ stu.id }}</td>
+            <td style="font-weight:600;">{{ stu.name }}</td>
             <td>
-                <button class="btn btn-outline" style="font-size:0.75rem; padding:3px 10px;"
-                    data-stu="{{ stu|tojson|forceescape }}"
-                    onclick="openEdit(this.dataset.stu)">Edit</button>
-                <button style="background:#da3633; color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:0.75rem; cursor:pointer; margin-left:4px;"
-                    onclick="deleteStudent({{ stu[0] }})">Del</button>
+                {% if stu.class_id %}
+                    <span class="badge badge-blue">{{ class_map.get(stu.class_id, '?') }}</span>
+                {% else %}
+                    <span class="badge badge-gray">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if stu.batch_id %}
+                    <span class="badge badge-green">{{ batch_map.get(stu.batch_id, '?') }}</span>
+                {% else %}
+                    <span class="badge badge-gray">—</span>
+                {% endif %}
+            </td>
+            <td><code>{{ stu.gr_number or '—' }}</code></td>
+            <td><code>{{ stu.enrollment_number or '—' }}</code></td>
+            <td style="color:var(--text-muted); font-size:0.82rem;">{{ stu.email }}</td>
+            <td style="font-size:0.82rem;">{{ stu.phone or '—' }}</td>
+            <td>
+                {% if stu.face_pid %}
+                    <span class="badge badge-green">✓</span>
+                {% else %}
+                    <span class="badge badge-gray">✗</span>
+                {% endif %}
+            </td>
+            <td>
+                <div style="display:flex; gap:0.4rem; align-items:center;">
+                    <button class="btn btn-outline" style="font-size:0.75rem; padding:3px 10px;"
+                        data-id="{{ stu.id }}" onclick="openEdit(this)">Edit</button>
+                    <button style="background:var(--accent-red); color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:0.75rem; cursor:pointer;"
+                        onclick="deleteStudent('{{ stu.id }}')">Del</button>
+                </div>
             </td>
         </tr>
         {% endfor %}
@@ -118,8 +143,8 @@
         {% for stu in no_face %}
         <div class="face-row">
             <div>
-                <div class="name">{{ stu[2] }}</div>
-                <div class="emp">{{ stu[1] }} · {{ class_map.get(stu[5], 'No class') }}</div>
+                <div class="name">{{ stu.name }}</div>
+                <div class="emp">ID: {{ stu.student_id }} · {{ class_map.get(stu.class_id, 'No class assigned') }}</div>
             </div>
             <span class="badge badge-gray">No face</span>
         </div>
@@ -149,10 +174,10 @@
                 <div class="emp">{{ info.employee_id or 'No ID' }} · Face DB key: <code>{{ pid }}</code></div>
             </div>
             <button class="btn btn-outline" style="font-size:0.78rem; padding:3px 12px;"
-                data-pid="{{ pid }}"
-                data-name="{{ info.name }}"
-                data-empid="{{ info.employee_id or '' }}"
-                onclick="openLinkModal(this.dataset.pid, this.dataset.name, this.dataset.empid)">
+                data-pid="{{ pid }}" 
+                data-name="{{ info.name|forceescape }}" 
+                data-empid="{{ info.employee_id or '' }}" 
+                onclick="openLinkModal(this)">
                 🔗 Link
             </button>
         </div>
@@ -168,8 +193,9 @@
         <h3 id="stuModalTitle" style="margin-bottom:1rem;">Add Student</h3>
         <input type="hidden" id="stuId">
 
-        <div class="form-grid-2" style="margin-bottom:0.75rem;">
-            <div class="form-group"><label>Student ID / Roll</label><input id="iStudentId" placeholder="e.g. 92301733001"></div>
+        <div class="form-grid-3" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>GR Number</label><input id="iGrNumber" placeholder="e.g. 131322"></div>
+            <div class="form-group"><label>Enrollment Number</label><input id="iEnrollment" placeholder="92410133031"></div>
             <div class="form-group"><label>Full Name</label><input id="iName" placeholder="Full name"></div>
         </div>
         <div class="form-grid-2" style="margin-bottom:0.75rem;">
@@ -182,7 +208,7 @@
                 <select id="iSem" onchange="loadClassesInModal(this.value)">
                     <option value="">Select</option>
                     {% for s in semesters %}
-                    <option value="{{ s[0] }}">Sem {{ s[1] }} — {{ s[2] }}</option>
+                    <option value="{{ s.id }}">{{ s.level or 'Degree' }} - Sem {{ s.number }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -199,15 +225,39 @@
                 </select>
             </div>
         </div>
-        <div class="form-grid-2" style="margin-bottom:0.75rem;">
-            <div class="form-group"><label>Roll Number</label><input id="iRoll" placeholder="Class roll number"></div>
-            <div class="form-group"><label>Phone</label><input id="iPhone" placeholder="10-digit phone"></div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+            <label>Phone Number</label>
+            <input id="iPhone" placeholder="10-digit phone number">
         </div>
 
         <p id="stuModalMsg" style="font-size:0.85rem; margin-bottom:0.5rem;"></p>
-        <div style="display:flex; gap:1rem; margin-top:1rem;">
-            <button class="btn btn-outline" style="flex:1;" onclick="closeStuModal()">Cancel</button>
-            <button class="btn btn-primary" style="flex:1;" id="stuSaveBtn" onclick="saveStudent()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Bulk Upload Modal ──────────────────────────────────────── -->
+<div class="modal-overlay" id="bulkModal">
+    <div class="modal" style="max-width:440px;">
+        <h3 style="margin-bottom:1rem;">📤 Bulk Upload Students</h3>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1.2rem;">
+            Upload an Excel file (.xlsx) with student details and a ZIP file containing photos 
+            named by GR number (e.g. <code>131322.jpg</code>).
+        </p>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label>Excel File (Student Data)</label>
+            <input type="file" id="bulkExcel" accept=".xlsx, .xls">
+        </div>
+        <div class="form-group" style="margin-bottom:1.5rem;">
+            <label>ZIP File (Photos)</label>
+            <input type="file" id="bulkZip" accept=".zip">
+        </div>
+
+        <div id="bulkMsg" style="font-size:0.85rem; margin-bottom:1rem; padding:0.5rem; border-radius:4px; display:none;"></div>
+
+        <div style="display:flex; gap:1rem;">
+            <button class="btn btn-outline" style="flex:1;" onclick="closeBulkModal()">Cancel</button>
+            <button class="btn btn-primary" style="flex:1;" id="bulkUploadBtn" onclick="handleBulkUpload()">Upload</button>
         </div>
     </div>
 </div>
@@ -224,7 +274,7 @@
             <select id="linkStudentSel">
                 <option value="">— choose —</option>
                 {% for stu in students %}
-                <option value="{{ stu[0] }}">{{ stu[2] }} ({{ stu[1] }})</option>
+                <option value="{{ stu.id }}">{{ stu.name }} ({{ stu.gr_number or 'No GR' }})</option>
                 {% endfor %}
             </select>
         </div>
@@ -235,11 +285,15 @@
         </div>
     </div>
 </div>
+<!-- JSON Data Islands for Safe Data Injection -->
+<script id="students-data" type="application/json">{{ students_json|safe }}</script>
+<script id="classes-data" type="application/json">{{ classes_json|safe }}</script>
+<script id="batches-data" type="application/json">{{ batches_json|safe }}</script>
 
 <script>
-let allStudents = {{ students_json|safe }};
-let classesData  = {{ classes_json|safe }};
-let batchesData  = {{ batches_json|safe }};
+let allStudents = JSON.parse(document.getElementById('students-data').textContent);
+let classesData  = JSON.parse(document.getElementById('classes-data').textContent);
+let batchesData  = JSON.parse(document.getElementById('batches-data').textContent);
 
 // ── Tab switching ────────────────────────────────────────────
 function switchTab(tab, btn) {
@@ -267,24 +321,47 @@ function searchStudents() {
 // ── Add / Edit Modal ──────────────────────────────────────────
 function openAddModal() {
     document.getElementById('stuId').value = '';
-    document.getElementById('stuModalTitle').textContent = 'Add Student';
-    ['iStudentId','iName','iEmail','iDept','iRoll','iPhone'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('stuModalTitle').textContent = 'Add New Student';
+    ['iGrNumber','iEnrollment','iName','iEmail','iDept','iPhone'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
     ['iSem','iClass','iBatch'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('stuModalMsg').textContent = '';
     document.getElementById('stuModal').style.display = 'flex';
 }
 
-async function openEdit(stuStr) {
-    let stu = JSON.parse(stuStr);
-    let id = stu[0];
+async function openEdit(btn) {
+    const id = btn.dataset.id;
+    const stu = allStudents.find(s => s.id == id);
+    if (!stu) return;
+
+    const classId = stu.class_id;
+    const classInfo = classesData.find(c => c.id == classId);
+    const semId = classInfo ? classInfo.sem_id : '';
+
     document.getElementById('stuId').value = id;
-    document.getElementById('stuModalTitle').textContent = 'Edit Student';
-    document.getElementById('iStudentId').value = stu[1];
-    document.getElementById('iName').value       = stu[2];
-    document.getElementById('iEmail').value      = stu[3];
-    document.getElementById('iDept').value       = stu[4];
-    document.getElementById('iRoll').value       = stu[7] || '';
-    document.getElementById('iPhone').value      = stu[8] || '';
+    document.getElementById('stuModalTitle').textContent = 'Edit Student (Sr. No: ' + id + ')';
+    document.getElementById('iGrNumber').value = stu.gr_number || '';
+    document.getElementById('iEnrollment').value = stu.enrollment_number || '';
+    document.getElementById('iName').value       = stu.name;
+    document.getElementById('iEmail').value      = stu.email;
+    document.getElementById('iDept').value       = stu.department;
+    
+    document.getElementById('iSem').value = semId;
+    if (semId) {
+        await loadClassesInModal(semId);
+        document.getElementById('iClass').value = classId || '';
+        if (classId) {
+            await loadBatchesInModal(classId);
+            document.getElementById('iBatch').value = stu.batch_id || '';
+        }
+    } else {
+        document.getElementById('iClass').innerHTML = '<option value="">Select</option>';
+        document.getElementById('iBatch').innerHTML = '<option value="">Select</option>';
+    }
+
+    document.getElementById('iPhone').value      = stu.phone || '';
     document.getElementById('stuModalMsg').textContent = '';
     
     if (stu[5]) { // class_id
@@ -329,17 +406,17 @@ async function loadBatchesInModal(classId) {
 async function saveStudent() {
     const id = document.getElementById('stuId').value;
     const payload = {
-        student_id:  document.getElementById('iStudentId').value.trim(),
         name:        document.getElementById('iName').value.trim(),
         email:       document.getElementById('iEmail').value.trim(),
+        gr_number:   document.getElementById('iGrNumber').value.trim(),
+        enrollment_number: document.getElementById('iEnrollment').value.trim(),
         department:  document.getElementById('iDept').value.trim(),
         class_id:    parseInt(document.getElementById('iClass').value) || null,
         batch_id:    parseInt(document.getElementById('iBatch').value) || null,
-        roll_number: document.getElementById('iRoll').value.trim() || null,
         phone:       document.getElementById('iPhone').value.trim() || null,
     };
-    if (!payload.student_id || !payload.name || !payload.email)
-        return setModalMsg('stuModalMsg', 'Student ID, Name and Email are required.', 'red');
+    if (!payload.gr_number || !payload.name || !payload.email)
+        return setModalMsg('stuModalMsg', 'GR Number, Full Name and Email are required.', 'red');
 
     const url = id ? '/api/admin/student/update' : '/api/admin/student/add';
     if (id) payload.id = parseInt(id);
@@ -356,10 +433,10 @@ async function deleteStudent(id) {
 
 // ── Link Face ────────────────────────────────────────────────
 let linkPid = '';
-function openLinkModal(pid, name, empId) {
-    linkPid = pid;
-    document.getElementById('linkFaceName').textContent = name;
-    document.getElementById('linkFacePid').textContent  = pid;
+function openLinkModal(btn) {
+    linkPid = btn.dataset.pid;
+    document.getElementById('linkFaceName').textContent = btn.dataset.name;
+    document.getElementById('linkFacePid').textContent  = linkPid;
     document.getElementById('linkStudentSel').value = '';
     document.getElementById('linkMsg').textContent = '';
     document.getElementById('linkModal').style.display = 'flex';
@@ -398,6 +475,88 @@ function setModalMsg(id, msg, color) {
     const el = document.getElementById(id);
     el.textContent = msg;
     el.style.color = color === 'green' ? '#2ea043' : '#da3633';
+}
+
+// ── Bulk Upload ─────────────────────────────────────────────
+function openBulkModal() {
+    document.getElementById('bulkExcel').value = '';
+    document.getElementById('bulkZip').value = '';
+    const msg = document.getElementById('bulkMsg');
+    msg.style.display = 'none';
+    msg.textContent = '';
+    document.getElementById('bulkModal').style.display = 'flex';
+}
+function closeBulkModal() { document.getElementById('bulkModal').style.display = 'none'; }
+
+async function handleBulkUpload() {
+    const excel = document.getElementById('bulkExcel').files[0];
+    const zip   = document.getElementById('bulkZip').files[0];
+    const btn   = document.getElementById('bulkUploadBtn');
+    const msg   = document.getElementById('bulkMsg');
+
+    if (!excel || !zip) {
+        msg.textContent = 'Please select both Excel and ZIP files.';
+        msg.style.color = '#da3633';
+        msg.style.background = 'rgba(218,54,51,0.1)';
+        msg.style.display = 'block';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('excel', excel);
+    formData.append('zip',   zip);
+
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    msg.textContent = 'Processing files... this may take a moment.';
+    msg.style.color = 'var(--accent-blue)';
+    msg.style.background = 'rgba(88,166,255,0.1)';
+    msg.style.display = 'block';
+
+    try {
+        const res = await fetch('/api/admin/student/bulk_upload', { method:'POST', body:formData });
+        const r = await res.json();
+        
+        if (r.success) {
+            msg.textContent = r.message;
+            msg.style.color = '#2ea043';
+            msg.style.background = 'rgba(46,160,67,0.1)';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            msg.textContent = 'Error: ' + r.message;
+            msg.style.color = '#da3633';
+            msg.style.background = 'rgba(218,54,51,0.1)';
+            btn.disabled = false;
+            btn.textContent = 'Upload';
+        }
+    } catch (err) {
+        msg.textContent = 'Network error occurred.';
+        msg.style.color = '#da3633';
+        msg.style.background = 'rgba(218,54,51,0.1)';
+        btn.disabled = false;
+        btn.textContent = 'Upload';
+    }
+}
+
+async function clearAllStudents() {
+    const confirmed = confirm("⚠️ DANGER: This will permanently delete ALL students, their attendance records, and photos. This cannot be undone.\n\nAre you sure you want to proceed?");
+    if (!confirmed) return;
+    
+    const doubleConfirmed = confirm("LAST WARNING: This is a total reset of the student database. Are you ABSOLUTELY sure?");
+    if (!doubleConfirmed) return;
+    
+    try {
+        const res = await fetch('/api/admin/student/clear_all', { method: 'POST' });
+        const r = await res.json();
+        if (r.success) {
+            alert(r.message);
+            location.reload();
+        } else {
+            alert("Error: " + r.message);
+        }
+    } catch (err) {
+        alert("An error occurred during deletion.");
+    }
 }
 
 async function post(url, body) {

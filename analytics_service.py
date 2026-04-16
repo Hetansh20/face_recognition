@@ -101,7 +101,7 @@ class AnalyticsService:
             self.db.connect()
             
             self.db.cursor.execute('''
-                SELECT s.name, s.email, s.student_id,
+                SELECT s.name, s.email, s.gr_number,
                        CAST(COUNT(a.id) AS FLOAT) / 
                        (SELECT COUNT(*) FROM attendance_sessions) * 100 as attendance_rate
                 FROM students s
@@ -300,7 +300,7 @@ class AnalyticsService:
             self.db.connect()
             
             self.db.cursor.execute('''
-                SELECT s.name, s.student_id, s.email,
+                SELECT s.name, s.gr_number, s.email,
                        COUNT(a.id) as attendance_count,
                        AVG(a.confidence_score) as avg_confidence
                 FROM students s

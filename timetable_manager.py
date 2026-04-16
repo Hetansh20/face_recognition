@@ -41,13 +41,19 @@ class TimetableManager:
             current_time_str = current_time.strftime("%H:%M")
             
             for timetable in timetables:
-                timetable_day = timetable[3]
-                start_time = timetable[4]
-                end_time = timetable[5]
+                timetable_day = timetable['day_of_week']
+                start_time = timetable['start_time']
+                end_time = timetable['end_time']
                 
                 if timetable_day.lower() == current_day.lower():
-                    if start_time <= current_time_str <= end_time:
-                        return timetable, "Active class found"
+                    # Normal class (e.g., 09:00 to 11:00)
+                    if start_time < end_time:
+                        if start_time <= current_time_str <= end_time:
+                            return timetable, "Active class found"
+                    # Overnight class (e.g., 19:18 to 07:18)
+                    else:
+                        if current_time_str >= start_time or current_time_str <= end_time:
+                            return timetable, "Active class found"
             
             return None, "No active class at this time"
         except Exception as e:
@@ -67,8 +73,8 @@ class TimetableManager:
             
             # Look for next class today
             for timetable in timetables:
-                timetable_day = timetable[3]
-                start_time = timetable[4]
+                timetable_day = timetable['day_of_week']
+                start_time = timetable['start_time']
                 
                 if timetable_day.lower() == current_day.lower():
                     if start_time > current_time_str:
@@ -80,7 +86,7 @@ class TimetableManager:
                 future_day = future_date.strftime("%A")
                 
                 for timetable in timetables:
-                    timetable_day = timetable[3]
+                    timetable_day = timetable['day_of_week']
                     
                     if timetable_day.lower() == future_day.lower():
                         return timetable, f"Next class found on {future_day}"
@@ -90,12 +96,27 @@ class TimetableManager:
             return None, f"Error: {str(e)}"
     
     def get_class_students(self, timetable_id):
-        """Get all students enrolled in a class"""
+        """Get students enrolled in the specific class/batch of the timetable entry"""
         try:
-            # This would need a student-class enrollment table
-            # For now, return all students
-            students = self.db.get_all_students()
-            return students, "Students retrieved"
+            entry = self.db.get_timetable_by_id(timetable_id)
+            if not entry:
+                return [], "Timetable entry not found"
+            
+            class_id = entry['class_id']
+            batch_id = entry['batch_id']
+            
+            if batch_id:
+                students = self.db.get_students_by_batch(batch_id)
+                msg = f"Retrieved {len(students)} students for specific batch"
+            elif class_id:
+                students = self.db.get_students_by_class(class_id)
+                msg = f"Retrieved {len(students)} students for full class"
+            else:
+                # Fallback for old/legacy timetable entries
+                students = self.db.get_all_students()
+                msg = "Fallback: No class/batch ID, showing all students"
+                
+            return students, msg
         except Exception as e:
             return None, f"Error: {str(e)}"
     
