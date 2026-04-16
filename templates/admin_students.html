@@ -25,6 +25,28 @@
             border:1px solid var(--border-color); border-radius:8px; margin-bottom:0.5rem; }
 .face-row .name { font-weight:500; flex:1; }
 .face-row .emp { color:var(--text-muted); font-size:0.82rem; }
+
+/* ── Modals ──────────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;                   /* toggled to flex by JS */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+.modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 580px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
 </style>
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem; flex-wrap:wrap; gap:1rem;">
@@ -135,11 +157,18 @@
 <!-- ── TAB: Unlinked Faces ────────────────────────────────────── -->
 <div id="tab-unlinked" style="display:none;">
     <div class="card" style="padding:1.2rem;">
-        <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">
-            These faces exist in the AI face database but are not linked to any student record. Click <strong>Link</strong> to assign them.
-        </p>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.75rem;">
+            <p style="color:var(--text-muted); font-size:0.88rem; margin:0;">
+                These faces exist in the AI face database but are not linked to any student record.
+                Click <strong>Link</strong> to assign individually, or use <strong>Import All</strong> to auto-create student records for every unlinked face at once.
+            </p>
+            <button class="btn btn-primary" style="white-space:nowrap;" onclick="importAllFaces()">
+                📥 Import All to Student DB
+            </button>
+        </div>
+        <div id="importMsg" style="font-size:0.88rem; margin-bottom:0.75rem; display:none;"></div>
         {% for pid, info in unlinked_faces.items() %}
-        <div class="face-row">
+        <div class="face-row" id="urow-{{ pid }}">
             <div>
                 <div class="name">{{ info.name }}</div>
                 <div class="emp">{{ info.employee_id or 'No ID' }} · Face DB key: <code>{{ pid }}</code></div>
@@ -334,9 +363,27 @@ async function openEdit(btn) {
 
     document.getElementById('iPhone').value      = stu.phone || '';
     document.getElementById('stuModalMsg').textContent = '';
+    
+    if (stu[5]) { // class_id
+        let cls = classesData.find(c => c[0] == stu[5]);
+        if (cls) {
+            document.getElementById('iSem').value = cls[4];
+            await loadClassesInModal(cls[4]);
+            document.getElementById('iClass').value = stu[5];
+            await loadBatchesInModal(stu[5]);
+            if (stu[6]) {
+                                document.getElementById('iBatch').value = stu[6];
+            }
+        }
+    } else {
+        document.getElementById('iSem').value = '';
+        document.getElementById('iClass').innerHTML = '<option value="">Select</option>';
+        document.getElementById('iBatch').innerHTML = '<option value="">Select</option>';
+    }
+
+    document.getElementById('stuModal').style.display = 'flex';
     document.getElementById('stuModal').style.display = 'flex';
 }
-
 function closeStuModal() { document.getElementById('stuModal').style.display = 'none'; }
 
 async function loadClassesInModal(semId) {
@@ -401,6 +448,27 @@ async function confirmLink() {
     const r = await post('/api/admin/student/link_face', { student_id: parseInt(stuId), face_pid: linkPid });
     setModalMsg('linkMsg', r.message, r.success ? 'green' : 'red');
     if (r.success) setTimeout(() => location.reload(), 800);
+}
+
+async function importAllFaces() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Importing...';
+    const msgEl = document.getElementById('importMsg');
+    msgEl.style.display = 'block';
+    msgEl.style.color = 'var(--text-muted)';
+    msgEl.textContent = 'Creating student records from face database…';
+    try {
+        const r = await post('/api/admin/student/bulk_import_faces', {});
+        msgEl.style.color = r.success ? '#2ea043' : '#da3633';
+        msgEl.textContent = r.message;
+        if (r.success && r.created > 0) setTimeout(() => location.reload(), 1500);
+    } catch(e) {
+        msgEl.style.color = '#da3633';
+        msgEl.textContent = 'Network error: ' + e.message;
+    }
+    btn.disabled = false;
+    btn.textContent = '📥 Import All to Student DB';
 }
 
 function setModalMsg(id, msg, color) {

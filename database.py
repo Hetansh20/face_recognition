@@ -430,25 +430,33 @@ class Database:
 
     def get_all_students(self):
         self.connect()
-        self.cursor.execute('SELECT * FROM students WHERE is_active=1 ORDER BY name')
+        self.cursor.execute(
+            '''SELECT id, student_id, name, email, department,
+                      class_id, batch_id, roll_number, phone, face_pid,
+                      created_at, is_active
+               FROM students WHERE is_active=1 ORDER BY name''')
         r = self.cursor.fetchall(); self.disconnect(); return r
 
     def get_students_by_class(self, class_id):
         """All active students in a class (all batches)."""
         self.connect()
         self.cursor.execute(
-            'SELECT * FROM students WHERE class_id=? AND is_active=1 ORDER BY name',
-            (class_id,)
-        )
+            '''SELECT id, student_id, name, email, department,
+                      class_id, batch_id, roll_number, phone, face_pid,
+                      created_at, is_active
+               FROM students WHERE class_id=? AND is_active=1 ORDER BY name''',
+            (class_id,))
         r = self.cursor.fetchall(); self.disconnect(); return r
 
     def get_students_by_batch(self, batch_id):
         """All active students in a specific batch."""
         self.connect()
         self.cursor.execute(
-            'SELECT * FROM students WHERE batch_id=? AND is_active=1 ORDER BY name',
-            (batch_id,)
-        )
+            '''SELECT id, student_id, name, email, department,
+                      class_id, batch_id, roll_number, phone, face_pid,
+                      created_at, is_active
+               FROM students WHERE batch_id=? AND is_active=1 ORDER BY name''',
+            (batch_id,))
         r = self.cursor.fetchall(); self.disconnect(); return r
 
     def search_students(self, query):
@@ -467,6 +475,30 @@ class Database:
         self.connect()
         self.cursor.execute('UPDATE students SET face_pid=? WHERE id=?', (face_pid, student_db_id))
         self.conn.commit(); self.disconnect()
+
+    def get_students_without_face(self):
+        """Students in DB but face_pid is NULL or not set."""
+        self.connect()
+        self.cursor.execute(
+            '''SELECT id, student_id, name, email, department,
+                      class_id, batch_id, roll_number, phone, face_pid,
+                      created_at, is_active
+               FROM students
+               WHERE is_active=1 AND (face_pid IS NULL OR face_pid = '')
+               ORDER BY name''')
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def get_face_pid_map(self):
+        """Return dict: face_pid → student row for quick lookup."""
+        self.connect()
+        self.cursor.execute(
+            '''SELECT id, student_id, name, email, department,
+                      class_id, batch_id, roll_number, phone, face_pid,
+                      created_at, is_active
+               FROM students WHERE is_active=1 AND face_pid IS NOT NULL AND face_pid != ''
+            ''')
+        rows = self.cursor.fetchall(); self.disconnect()
+        return {row[9]: row for row in rows}   # index 9 = face_pid
 
     # ──────────────────────── Timetables ─────────────────────────────
 

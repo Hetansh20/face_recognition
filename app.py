@@ -931,7 +931,10 @@ def api_faculty_export_csv():
 @app.route("/admin/faces")
 @admin_required
 def admin_faces():
-    return render_template("admin_faces.html")
+    db = get_db()
+    # Pass semesters to populate the capture/add student dropdown
+    semesters = db.get_all_semesters()
+    return render_template("admin_faces.html", semesters=semesters)
 
 @app.route("/api/admin/list_faces")
 @admin_required
@@ -941,14 +944,33 @@ def api_list_faces():
         people = []
         if os.path.exists(FACE_DB):
             with open(FACE_DB, 'r') as f:
-                db = json.load(f)
-            for pid, info in db.items():
+                db_faces = json.load(f)
+            
+            db = get_db()
+            face_map = db.get_face_pid_map()
+            class_map = {c[0]: c[2] for c in db.get_classes()}
+            batch_map = {b[0]: b[2] for b in db.get_batches()}
+
+            for pid, info in db_faces.items():
+                linked = None
+                stu = face_map.get(pid)
+                if stu:
+                    # student_id is index 1, name index 2, class index 5, batch 6, roll 7
+                    linked = {
+                        'student_id': stu[1],
+                        'name': stu[2],
+                        'class': class_map.get(stu[5], '?'),
+                        'batch': batch_map.get(stu[6], '?'),
+                        'roll': stu[7] or 'No Roll'
+                    }
+
                 people.append({
                     'person_id': pid,
                     'name': info.get('name', pid),
                     'employee_id': info.get('employee_id', ''),
                     'image_count': len(info.get('image_paths', [])),
                     'registered': info.get('registered', ''),
+                    'linked_stu': linked
                 })
         return jsonify({'success': True, 'people': people})
     except Exception as e:
@@ -974,6 +996,13 @@ def api_save_face():
         safe_id = gr_number.replace(' ', '_')
         person_id = f"{safe_name}_{safe_id}"
         os.makedirs(FACES_DIR, exist_ok=True)
+        
+        db = get_db()
+        existing = db.get_student_by_student_id(emp_id)
+        if existing:
+            db.update_student(existing[0], emp_id, name, email, dept, class_id, batch_id, roll, phone, face_pid=person_id)
+        else:
+            db.add_student(emp_id, name, email, dept, class_id, batch_id, roll, phone, face_pid=person_id)
         
         suffixes = ['front', 'left', 'right']
         image_paths = []
