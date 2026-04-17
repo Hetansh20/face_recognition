@@ -1,22 +1,25 @@
 # ─── Stage 1: Base Image ──────────────────────────────────────────────────────
-# Using Python 3.11 slim for minimal size. Also includes built-in native libs
-# needed for OpenCV and InsightFace ONNX Runtime.
 FROM python:3.11-slim
 
-# ─── System Dependencies ────────────────────────────────────────────────────── 
+# ─── System Dependencies ──────────────────────────────────────────────────────
 # libgl1 + libglib2.0-0 are required by OpenCV (headless still needs them)
 # libgomp1 is needed by InsightFace/ONNX for multi-threaded inference
+# g++ is needed to compile InsightFace's Cython C++ extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libgomp1 \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # ─── Working Directory ───────────────────────────────────────────────────────
 WORKDIR /app
 
 # ─── Install Python Dependencies ─────────────────────────────────────────────
-# Copy requirements first for layer caching
+# Install CPU-only PyTorch FIRST to avoid downloading 2GB+ of CUDA libraries
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Copy requirements and install the rest
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -27,13 +30,9 @@ COPY . .
 RUN mkdir -p registered_faces attendance_reports
 
 # ─── Expose Port ────────────────────────────────────────────────────────────
-# Railway injects $PORT dynamically; Gunicorn will bind to it.
 EXPOSE 8080
 
 # ─── Start Command ───────────────────────────────────────────────────────────
-# - Using gunicorn (production WSGI) instead of Flask dev server.
-# - --timeout 120 is important because InsightFace model loads can be slow.
-# - 1 worker required because the face engine is a global stateful Python object.
 CMD gunicorn app:app \
     --bind 0.0.0.0:${PORT:-8080} \
     --workers 1 \
