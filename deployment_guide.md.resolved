@@ -1,0 +1,309 @@
+# 🚀 Deployment Guide — College Attendance System
+
+This guide will take you from **zero to a live, production-ready system** that your faculty can access from anywhere. Written for someone with no prior deployment experience.
+
+---
+
+## 📋 Table of Contents
+
+1. [Understanding the Architecture](#1-understanding-the-architecture)
+2. [Database: SQLite vs PostgreSQL](#2-database-sqlite-vs-postgresql)
+3. [Where to Host (Platform Comparison)](#3-where-to-host)
+4. [Step-by-Step: Deploy on Railway.app](#4-step-by-step-deploy-on-railway)
+5. [Step-by-Step: Deploy on Render](#5-step-by-step-deploy-on-render)
+6. [Migrating SQLite → PostgreSQL](#6-migrating-sqlite-to-postgresql)
+7. [Environment Variables & Secrets](#7-environment-variables--secrets)
+8. [Custom Domain (Optional)](#8-custom-domain)
+9. [Troubleshooting](#9-troubleshooting)
+
+---
+
+## 1. Understanding the Architecture
+
+Your app has these moving parts:
+
+```mermaid
+graph LR
+    A[Faculty Browser] -->|HTTPS| B[Your Server]
+    B --> C[Flask App + Gunicorn]
+    C --> D[(SQLite / PostgreSQL)]
+    C --> E[InsightFace AI Model]
+    C --> F[face_database.json]
+    C --> G[registered_faces/ images]
+```
+
+| Component | What it does |
+|---|---|
+| **Flask + Gunicorn** | Web server — handles requests |
+| **SQLite DB** | Stores students, faculty, attendance, timetable |
+| **face_database.json** | Maps person_id → image paths & metadata |
+| **face_embeddings_insightface.pkl** | Pre-computed face vectors for fast recognition |
+| **registered_faces/** | Actual face images (JPEGs) |
+| **yolov8n-face.pt** | YOLO model for detecting faces in group photos |
+
+---
+
+## 2. Database: SQLite vs PostgreSQL
+
+### Should you switch?
+
+| Factor | SQLite (Current) | PostgreSQL |
+|---|---|---|
+| **Setup** | Zero config, one file | Requires a separate server |
+| **Cost** | Free | Free tier available (Neon, Supabase) |
+| **Concurrent users** | ⚠️ 1 writer at a time | ✅ Many simultaneous writers |
+| **Data loss risk** | ⚠️ File can get corrupted on crash | ✅ ACID-compliant, crash-safe |
+| **Cloud hosting** | ⚠️ Ephemeral file systems lose data on redeploy | ✅ Persistent, separate service |
+| **Scale** | Good for ~50 users | Good for 1000+ users |
+
+> [!IMPORTANT]
+> **Recommendation:** For a real college deployment with multiple faculty using it simultaneously, **switch to PostgreSQL**. Most cloud platforms (Railway, Render) have **free/cheap file systems that reset on every deploy**, which means your SQLite DB would be **wiped every time you push an update**. PostgreSQL runs as a separate persistent service that survives redeploys.
+
+### If you want to start simple first
+You *can* keep SQLite for an initial test/demo by using a platform with persistent disk (like a DigitalOcean Droplet or a VPS). But for long-term, PostgreSQL is the way to go.
+
+---
+
+## 3. Where to Host
+
+### Platform Comparison
+
+| Platform | Free Tier | PostgreSQL | Ease | Best For |
+|---|---|---|---|---|
+| **[Railway.app](https://railway.app)** | $5 free credit/mo | ✅ One-click | ⭐⭐⭐⭐⭐ | Easiest for beginners |
+| **[Render](https://render.com)** | Free (sleeps after 15min) | ✅ Free 90 days | ⭐⭐⭐⭐ | Free tier |
+| **[Neon](https://neon.tech)** + Render | Free Postgres forever | ✅ Generous free | ⭐⭐⭐⭐ | Best free Postgres |
+| **DigitalOcean Droplet** | $4/mo | Manual setup | ⭐⭐⭐ | Full control, persistent disk |
+| **AWS EC2** | 1 year free tier | RDS free tier | ⭐⭐ | Enterprise scale |
+| **Heroku** | $5/mo (Eco) | ✅ Add-on | ⭐⭐⭐⭐ | Classic PaaS |
+
+> [!TIP]
+> **My recommendation: Railway.app** — It's the simplest. You connect your GitHub repo, set environment variables, and it auto-deploys. PostgreSQL is one click away. The $5/month free credit is enough for a college project.
+
+---
+
+## 4. Step-by-Step: Deploy on Railway
+
+### Prerequisites
+- A [GitHub](https://github.com) account (free)
+- Your project pushed to a GitHub repository
+
+### Step 1: Push Code to GitHub
+
+```bash
+# In your project folder (d:\ML\deepface\face_recognition)
+git init                          # Already done
+git add .
+git commit -m "Production ready"
+git remote add origin https://github.com/YOUR_USERNAME/attendance-system.git
+git push -u origin main
+```
+
+> [!CAUTION]
+> **NEVER push [.env](file:///d:/ML/deepface/face_recognition/.env) to GitHub!** Your [.gitignore](file:///d:/ML/deepface/face_recognition/.gitignore) already excludes it. Double-check before pushing. Your [.env](file:///d:/ML/deepface/face_recognition/.env) contains your email password.
+
+### Step 2: Create Railway Account
+1. Go to [railway.app](https://railway.app)
+2. Sign up with your GitHub account
+3. You get **$5 free credit per month** (no credit card needed initially)
+
+### Step 3: Create a New Project
+1. Click **"New Project"**
+2. Select **"Deploy from GitHub Repo"**
+3. Connect your GitHub and select your `attendance-system` repository
+4. Railway will auto-detect your [Dockerfile](file:///d:/ML/deepface/face_recognition/Dockerfile) and start building
+
+### Step 4: Add PostgreSQL Database
+1. In your Railway project dashboard, click **"+ New"** → **"Database"** → **"PostgreSQL"**
+2. Railway creates a PostgreSQL instance and gives you a connection URL
+3. Click on the PostgreSQL service → **"Variables"** tab
+4. Copy the `DATABASE_URL` value (it looks like `postgresql://user:pass@host:port/dbname`)
+
+### Step 5: Set Environment Variables
+1. Click on your **app service** (not the database)
+2. Go to the **"Variables"** tab
+3. Add these variables:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | `postgresql://...` (from Step 4 — Railway can auto-link this) |
+| `SECRET_KEY` | Any random string, e.g. `my-super-secret-key-2026` |
+| `SENDER_EMAIL` | `anshraythatha123@gmail.com` |
+| `SENDER_PASSWORD` | Your Gmail app password |
+| `PORT` | `8080` (Railway sets this automatically) |
+
+### Step 6: Deploy
+Railway will automatically rebuild and deploy. Check the **"Deployments"** tab for logs.
+
+### Step 7: Access Your App
+Railway gives you a URL like `https://attendance-system-production.up.railway.app`. Share this with your faculty!
+
+---
+
+## 5. Step-by-Step: Deploy on Render
+
+### Step 1: Push to GitHub (same as above)
+
+### Step 2: Create Render Account
+1. Go to [render.com](https://render.com) and sign up with GitHub
+
+### Step 3: Create a PostgreSQL Database
+1. Dashboard → **"New"** → **"PostgreSQL"**
+2. Name: `attendance-db`
+3. Plan: **Free** (90-day limit) or **Starter** ($7/mo)
+4. Click **Create**
+5. Copy the **Internal Database URL**
+
+### Step 4: Create a Web Service
+1. **"New"** → **"Web Service"**
+2. Connect your GitHub repo
+3. Settings:
+   - **Environment**: Docker
+   - **Plan**: Free (or Starter $7/mo for always-on)
+4. Add environment variables (same as Railway Step 5)
+5. Click **Deploy**
+
+> [!NOTE]
+> Render's free tier **sleeps after 15 minutes of inactivity** and takes ~30 seconds to wake up. For a college system used during class hours, the **Starter plan ($7/mo)** is recommended to keep it always on.
+
+---
+
+## 6. Migrating SQLite to PostgreSQL
+
+This is the biggest code change needed. Here's exactly what to do:
+
+### Step 1: Install the PostgreSQL driver
+
+Add to [requirements.txt](file:///d:/ML/deepface/face_recognition/requirements.txt):
+```diff
++psycopg2-binary
+```
+
+### Step 2: Update [database.py](file:///d:/ML/deepface/face_recognition/database.py)
+
+The key change is replacing `sqlite3` with `psycopg2` and adjusting SQL syntax. Here's the strategy:
+
+```python
+# OLD (SQLite)
+import sqlite3
+self.conn = sqlite3.connect(DB_PATH)
+
+# NEW (PostgreSQL)
+import psycopg2
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+if DATABASE_URL:
+    self.conn = psycopg2.connect(DATABASE_URL)
+else:
+    # Fallback to SQLite for local development
+    import sqlite3
+    self.conn = sqlite3.connect(DB_PATH)
+```
+
+### Key SQL Differences to Fix
+
+| SQLite | PostgreSQL |
+|---|---|
+| `AUTOINCREMENT` | `SERIAL` (auto-handled) |
+| `INTEGER PRIMARY KEY AUTOINCREMENT` | `SERIAL PRIMARY KEY` |
+| `?` placeholders | `%s` placeholders |
+| `datetime('now')` | `NOW()` |
+| `LIKE` (case-insensitive by default) | `ILIKE` (use for case-insensitive) |
+
+### Step 3: Migrate Existing Data
+
+You need to run this **once** to transfer your local SQLite data to the remote PostgreSQL:
+
+```python
+# migration_script.py (run locally, one time only)
+import sqlite3
+import psycopg2
+
+# Connect to both databases
+sqlite_conn = sqlite3.connect('attendance_system.db')
+pg_conn = psycopg2.connect('postgresql://USER:PASS@HOST:PORT/DBNAME')
+
+# For each table, read from SQLite and insert into PostgreSQL
+tables = ['semesters', 'classes', 'batches', 'faculty', 'students', 
+          'lectures', 'attendance_sessions', 'attendance_records']
+
+for table in tables:
+    rows = sqlite_conn.execute(f'SELECT * FROM {table}').fetchall()
+    if rows:
+        placeholders = ','.join(['%s'] * len(rows[0]))
+        for row in rows:
+            pg_conn.execute(f'INSERT INTO {table} VALUES ({placeholders})', row)
+        pg_conn.commit()
+        print(f'Migrated {len(rows)} rows from {table}')
+
+sqlite_conn.close()
+pg_conn.close()
+```
+
+> [!IMPORTANT]
+> **I can do this entire migration for you** if you want. Just say "migrate to PostgreSQL" and I'll update all the code. It's about ~30 minutes of work to modify [database.py](file:///d:/ML/deepface/face_recognition/database.py).
+
+---
+
+## 7. Environment Variables & Secrets
+
+**Never hardcode secrets.** Update your [app.py](file:///d:/ML/deepface/face_recognition/app.py) to read from environment:
+
+```python
+# app.py — already partially done
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+```
+
+Your [.env](file:///d:/ML/deepface/face_recognition/.env) file (for local development only):
+```
+SECRET_KEY=my-local-dev-key
+DATABASE_URL=          # Leave empty to use SQLite locally
+SENDER_EMAIL=anshraythatha123@gmail.com
+SENDER_PASSWORD=bjrxmajojbeohqse
+```
+
+On the cloud platform, set these same variables in the dashboard (never commit [.env](file:///d:/ML/deepface/face_recognition/.env) to Git).
+
+---
+
+## 8. Custom Domain (Optional)
+
+If your college has a domain like `gec.ac.in`, you can set up a subdomain:
+
+1. **Railway/Render**: Go to Settings → Custom Domain
+2. Add `attendance.gec.ac.in` (or whatever you want)
+3. Add a **CNAME record** in your college's DNS panel pointing to the platform's URL
+4. Railway/Render will auto-provision an SSL certificate (HTTPS)
+
+---
+
+## 9. Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| **Build fails** | Check that [requirements.txt](file:///d:/ML/deepface/face_recognition/requirements.txt) has all dependencies. Look at build logs. |
+| **App crashes on start** | Usually missing environment variables. Check `SECRET_KEY` and `DATABASE_URL` are set. |
+| **Face recognition slow** | InsightFace model loads on first request (~10-20s). This is normal. Increase gunicorn `--timeout` to 120+. |
+| **DB data lost after redeploy** | You're using SQLite on an ephemeral filesystem. Switch to PostgreSQL. |
+| **"Address already in use"** | The `PORT` env var isn't set. Railway/Render set it automatically. |
+| **Large image files** | Consider storing `registered_faces/` in cloud storage (AWS S3 / Cloudinary) for production. |
+| **Gmail SMTP blocked** | Use an [App Password](https://myaccount.google.com/apppasswords), not your real password. |
+
+---
+
+## 🎯 Recommended Action Plan
+
+| Step | What | Time |
+|---|---|---|
+| 1 | Push code to GitHub | 10 min |
+| 2 | Create Railway account | 5 min |
+| 3 | Deploy with Dockerfile | 15 min |
+| 4 | Add PostgreSQL on Railway | 5 min |
+| 5 | I migrate your [database.py](file:///d:/ML/deepface/face_recognition/database.py) to PostgreSQL | ~30 min (I do this) |
+| 6 | Run migration script to transfer data | 10 min |
+| 7 | Test with faculty | 30 min |
+| **Total** | | **~1.5 hours** |
+
+---
+
+> [!TIP]
+> **Next step:** Tell me which platform you want to use (Railway recommended), and whether you want me to do the PostgreSQL migration now. I'll update all the code for you!
