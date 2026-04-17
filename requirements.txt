@@ -17,6 +17,7 @@ bcrypt
 numpy
 scipy
 Pillow
+pandas
 
 # Utilities
 python-dotenv
