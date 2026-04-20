@@ -1099,11 +1099,11 @@ def api_train_model():
             return jsonify({'success': False, 'message': 'Face database is empty.'})
         
         from insightface.app import FaceAnalysis
-        face_app = FaceAnalysis(name='buffalo_l')
+        face_app = FaceAnalysis(name='buffalo_sc')  # lightweight; buffalo_l (281MB) causes OOM on Railway
         try:
-            face_app.prepare(ctx_id=0, det_thresh=0.5)
-        except:
-            face_app.prepare(ctx_id=-1, det_thresh=0.5)
+            face_app.prepare(ctx_id=-1, det_thresh=0.5, det_size=(320, 320))
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Model load failed: {e}'})
         
         cache = {}
         total_images = 0

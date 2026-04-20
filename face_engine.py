@@ -24,17 +24,17 @@ class FaceEngine:
         # Recognition tuning for low-latency attendance
         self.vote_window = 5
         self.required_votes = 3
-        self.det_size = (416, 416)
+        self.det_size = (320, 320)   # reduced from 416 to save RAM on Railway
         self.infer_width = 640
 
-        # Load InsightFace
-        self.face_app = FaceAnalysis(name="buffalo_l")
+        # Load InsightFace — use buffalo_sc (lightweight ~30MB vs buffalo_l 281MB)
+        # buffalo_l causes OOM on Railway free tier (512MB RAM limit)
+        self.face_app = FaceAnalysis(name="buffalo_sc")
         try:
-            self.face_app.prepare(ctx_id=0, det_thresh=0.5, det_size=self.det_size)
-            print("[FaceEngine] InsightFace loaded (GPU Base)")
-        except:
             self.face_app.prepare(ctx_id=-1, det_thresh=0.5, det_size=self.det_size)
-            print("[FaceEngine] InsightFace loaded (CPU Base)")
+            print("[FaceEngine] InsightFace loaded (CPU, buffalo_sc)")
+        except Exception as e:
+            print(f"[FaceEngine] InsightFace load failed: {e}")
             
         # Database setup
         self.faces_dir = "registered_faces"
