@@ -1,5 +1,5 @@
 from database import Database
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class TimetableManager:
     """Manages timetable operations and active class detection"""
@@ -36,7 +36,9 @@ class TimetableManager:
             if not timetables:
                 return None, "No timetables found"
             
-            current_time = datetime.now()
+            # Use IST (UTC+5:30) — Railway servers run in UTC
+            IST = timezone(timedelta(hours=5, minutes=30))
+            current_time = datetime.now(IST)
             current_day = current_time.strftime("%A")
             current_time_str = current_time.strftime("%H:%M")
             
@@ -67,7 +69,8 @@ class TimetableManager:
             if not timetables:
                 return None, "No timetables found"
             
-            current_time = datetime.now()
+            IST = timezone(timedelta(hours=5, minutes=30))
+            current_time = datetime.now(IST)
             current_day = current_time.strftime("%A")
             current_time_str = current_time.strftime("%H:%M")
             
