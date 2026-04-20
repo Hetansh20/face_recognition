@@ -22,3 +22,7 @@ pandas
 # Utilities
 python-dotenv
 requests
+
+#Excel libraries
+openpyxl
+xlrd
