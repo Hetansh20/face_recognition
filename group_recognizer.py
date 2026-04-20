@@ -104,11 +104,11 @@ def process_group_photo(image_bytes: bytes) -> dict:
 
     # ── Primary: InsightFace on FULL frame (one pass → all embeddings) ────────
     from insightface.app import FaceAnalysis
-    fa = FaceAnalysis(name="buffalo_l")
+    fa = FaceAnalysis(name="buffalo_sc")   # lightweight model (~30MB vs 281MB for buffalo_l)
     try:
-        fa.prepare(ctx_id=0, det_thresh=0.35, det_size=(640, 640))
+        fa.prepare(ctx_id=-1, det_thresh=0.35, det_size=(320, 320))  # CPU + smaller size = less RAM
     except Exception:
-        fa.prepare(ctx_id=-1, det_thresh=0.35, det_size=(640, 640))
+        fa.prepare(ctx_id=-1, det_thresh=0.35, det_size=(320, 320))
 
     detected = fa.get(frame)
     print(f"[GroupRecog] InsightFace full-frame: {len(detected)} faces found")
