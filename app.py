@@ -840,12 +840,23 @@ def api_multi_photo_attend():
     
     absent_list = []
     for s in (students or []):
-        pid = s['face_pid']
+        # Support both sqlite3.Row (key access) and plain tuples (index access)
+        # Column order: id=0, student_id=1, name=2, email=3, department=4,
+        #               class_id=5, batch_id=6, roll_number=7, phone=8, face_pid=9
+        try:
+            pid  = s['face_pid']
+            name = s['name']
+            gr   = s['gr_number'] if 'gr_number' in s.keys() else s['student_id']
+        except (IndexError, TypeError):
+            pid  = s[9]   # face_pid
+            name = s[2]   # name
+            gr   = s[1]   # student_id / gr_number
+
         if pid and pid not in present_ids:
             absent_list.append({
                 "person_id":   pid,
-                "name":        s['name'],
-                "employee_id": s['gr_number'] or s['student_id'] or '',
+                "name":        name,
+                "employee_id": gr or '',
             })
 
     return jsonify({
