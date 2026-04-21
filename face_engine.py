@@ -56,6 +56,19 @@ class FaceEngine:
                     self.embeddings = pickle.load(f)
             except: pass
             
+        # ── Optimization: Filter embeddings for current batch/class ──
+        if self.timetable_id is not None:
+            try:
+                from timetable_manager import timetable_manager
+                students, _ = timetable_manager.get_class_students(self.timetable_id)
+                if students:
+                    target_pids = {s['face_pid'] for s in students if s['face_pid']}
+                    # Only keep embeddings for students in this batch
+                    self.embeddings = {pid: data for pid, data in self.embeddings.items() if pid in target_pids}
+                    print(f"[FaceEngine] Optimization: {len(self.embeddings)} embeddings loaded for session")
+            except Exception as filter_err:
+                print(f"[FaceEngine] Filtering embeddings failed: {filter_err}")
+                
         # Recognition buffers
         self.vote_buffer = []
         self.last_recognized = None

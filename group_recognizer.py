@@ -47,13 +47,17 @@ def _load_face_db() -> dict:
     return {}
 
 
-def _best_match(live_vec: np.ndarray, embeddings: dict):
+def _best_match(live_vec: np.ndarray, embeddings: dict, target_pids: list = None):
     """Return (person_id, distance) for best cosine match."""
     if not embeddings:
         return None, 1.0
 
     dists = []
     for pid, data in embeddings.items():
+        # If target_pids is provided, skip students NOT in the list
+        if target_pids is not None and pid not in target_pids:
+            continue
+
         if isinstance(data, dict) and "all" in data:
             min_d = min(
                 1.0 - float(np.dot(live_vec, sv))
@@ -77,10 +81,11 @@ def _best_match(live_vec: np.ndarray, embeddings: dict):
 
 
 
-def process_group_photo(image_bytes: bytes) -> dict:
+def process_group_photo(image_bytes: bytes, target_pids: list = None) -> dict:
     """
     Main entry point. Accepts raw JPEG/PNG bytes.
     Returns recognition results and annotated image.
+    Allows filtering by target_pids for optimized/specific batch recognition.
     """
     embeddings = _load_embeddings()
     face_db    = _load_face_db()
@@ -125,7 +130,7 @@ def process_group_photo(image_bytes: bytes) -> dict:
         matched_centers.add((cx // 20, cy // 20))  # 20px grid cell
 
         live_vec = _l2_normalize(face.embedding.astype(np.float32))
-        pid, dist = _best_match(live_vec, embeddings)
+        pid, dist = _best_match(live_vec, embeddings, target_pids=target_pids)
 
         if pid:
             info       = face_db.get(pid, {})
@@ -166,7 +171,7 @@ def process_group_photo(image_bytes: bytes) -> dict:
                 if faces_in_crop:
                     best_crop = max(faces_in_crop, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
                     lv = _l2_normalize(best_crop.embedding.astype(np.float32))
-                    pid2, dist2 = _best_match(lv, embeddings)
+                    pid2, dist2 = _best_match(lv, embeddings, target_pids=target_pids)
                     bbox2 = [x1, y1, x2, y2]
                     matched_centers.add(cell)
                     if pid2:

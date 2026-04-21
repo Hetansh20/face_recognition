@@ -516,6 +516,13 @@ def api_admin_student_bulk_upload():
                     if cid: cid = int(float(cid))
                     if bid: bid = int(float(bid))
                     
+                    # If batch is found but class is missing, resolve class from batch
+                    if bid and not cid:
+                        for b in all_batches:
+                            if b[0] == bid:
+                                cid = b[1] # b[1] is class_id in get_all_batches
+                                break
+                    
                     # Add/Update in SQLite (Robust Upsert: Check GR, then Enrollment, then Email)
                     existing = db.get_student_by_gr_number(gr_num)
                     if not existing:
@@ -729,7 +736,13 @@ def api_group_photo_attend():
 
     try:
         from group_recognizer import process_group_photo
-        result = process_group_photo(img_bytes)
+        
+        # ── Filter by targeted batch/class students ─────────────────
+        timetable_id = session_info["timetable_id"]
+        students, _ = timetable_manager.get_class_students(timetable_id)
+        target_pids = [s['face_pid'] for s in (students or []) if s['face_pid']]
+        
+        result = process_group_photo(img_bytes, target_pids=target_pids if target_pids else None)
     except Exception as e:
         return jsonify({"success": False, "message": f"Recognition error: {e}"})
 
@@ -807,10 +820,15 @@ def api_multi_photo_attend():
     annotated_images = []
     total_face_counts = []
 
+    # Fetch targeted students for filtering
+    tid = session_info["timetable_id"]
+    students_in_session, _ = timetable_manager.get_class_students(tid)
+    target_pids = [s['face_pid'] for s in (students_in_session or []) if s['face_pid']]
+
     for img_b64 in images[:3]:
         try:
             img_bytes = base64.b64decode(img_b64.split(",")[-1])
-            result    = process_group_photo(img_bytes)
+            result    = process_group_photo(img_bytes, target_pids=target_pids if target_pids else None)
         except Exception as e:
             print(f"[MultiPhoto] Error processing image: {e}")
             continue

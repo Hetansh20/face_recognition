@@ -196,6 +196,10 @@ class Database:
         self._add_column_if_missing("semesters",  "level",   "TEXT")
 
         self.conn.commit()
+        
+        # ── Data Repair: Fix missing class/batch links ─────────────
+        self.repair_data_mappings()
+        
         self.disconnect()
 
     def _add_column_if_missing(self, table, column, col_type):
@@ -627,6 +631,36 @@ class Database:
         self.connect()
         self.cursor.execute('SELECT * FROM attendance_sessions WHERE id=?', (session_id,))
         r = self.cursor.fetchone(); self.disconnect(); return r
+
+    # ──────────────────────── Data Repair ────────────────────────────
+
+    def repair_data_mappings(self):
+        """Fixes missing class_id in students and timetables for better filtering."""
+        self.connect()
+        try:
+            # 1. Fill missing student class_id from their batch
+            self.cursor.execute('''
+                UPDATE students 
+                SET class_id = (SELECT class_id FROM batches WHERE batches.id = students.batch_id)
+                WHERE class_id IS NULL AND batch_id IS NOT NULL
+            ''')
+            
+            # 2. Fill missing timetable class_id from class_name
+            self.cursor.execute('''
+                UPDATE timetables
+                SET class_id = (SELECT id FROM classes WHERE classes.name = timetables.class_name LIMIT 1)
+                WHERE class_id IS NULL AND class_name IS NOT NULL
+            ''')
+            
+            # 3. Fill missing timetable batch_id if "Batch X" is in class_name or subject (rare but helps)
+            # (Skipping complex string matching for now to avoid false positives)
+            
+            self.conn.commit()
+            print("[Database] Data repair completed successfully.")
+        except Exception as e:
+            print(f"[Database] Data repair error: {e}")
+        finally:
+            self.disconnect()
 
 
 if __name__ == "__main__":

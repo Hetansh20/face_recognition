@@ -11,9 +11,10 @@ class AttendanceMarker:
     def start_session(self, faculty_id, timetable_id):
         """Start a new attendance session"""
         try:
-            # Get class students
-            students = self.db.get_all_students()
-            total_students = len(students)
+            # Get class/batch specific students for accurate total count
+            from timetable_manager import timetable_manager
+            students, _ = timetable_manager.get_class_students(timetable_id)
+            total_students = len(students) if students else 0
             
             # Create session
             session_id = self.db.create_session(faculty_id, timetable_id, total_students)

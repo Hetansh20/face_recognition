@@ -107,6 +107,17 @@ class TimetableManager:
             
             class_id = entry['class_id']
             batch_id = entry['batch_id']
+            class_name = entry['class_name']
+            
+            # Dynamic Resolution: If class_id is missing, try to find it by name
+            if not class_id and class_name:
+                try:
+                    self.db.connect()
+                    self.db.cursor.execute("SELECT id FROM classes WHERE name = ? LIMIT 1", (class_name,))
+                    row = self.db.cursor.fetchone()
+                    if row: class_id = row[0]
+                except: pass
+                finally: self.db.disconnect()
             
             if batch_id:
                 students = self.db.get_students_by_batch(batch_id)
@@ -115,9 +126,11 @@ class TimetableManager:
                 students = self.db.get_students_by_class(class_id)
                 msg = f"Retrieved {len(students)} students for full class"
             else:
-                # Fallback for old/legacy timetable entries
-                students = self.db.get_all_students()
-                msg = "Fallback: No class/batch ID, showing all students"
+                # STRICT FALLBACK: Do NOT return all students.
+                # Only return students whose class_name matches the timetable class_name (fuzzy)
+                # or return empty if no clear match.
+                students = []
+                msg = "No class/batch ID found. Please update the timetable entry."
                 
             return students, msg
         except Exception as e:
