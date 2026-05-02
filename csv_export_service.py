@@ -1,262 +1,119 @@
+"""
+csv_export_service.py
+Generates attendance CSVs purely in-memory (io.StringIO).
+No files are written to disk — the bytes are sent directly via email.
+"""
+
 import csv
-import os
+import io
 from datetime import datetime
 from database import Database
 
+
 class CSVExportService:
-    """Service for exporting attendance data to CSV files"""
-    
+    """Generates attendance CSV content in memory (no disk I/O)."""
+
     def __init__(self):
         self.db = Database()
-        self.export_dir = "attendance_reports"
-        self.create_export_directory()
-    
-    def create_export_directory(self):
-        """Create export directory if it doesn't exist"""
-        if not os.path.exists(self.export_dir):
-            os.makedirs(self.export_dir)
-    
-    def export_faculty_attendance(self, faculty_id, faculty_name):
-        """Export all attendance records for a specific faculty"""
-        try:
-            # Get all timetables for the faculty
-            timetables = self.db.get_faculty_timetables(faculty_id)
-            
-            if not timetables:
-                return None, "No timetables found for this faculty"
-            
-            # Prepare filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = os.path.join(
-                self.export_dir,
-                f"Faculty_{faculty_name.replace(' ', '_')}_{timestamp}.csv"
-            )
-            
-            # Collect all attendance data
-            all_attendance = []
-            for timetable in timetables:
-                timetable_id = timetable[0]
-                class_name = timetable[2]
-                day = timetable[3]
-                time_slot = f"{timetable[4]} - {timetable[5]}"
-                
-                # Get attendance for this timetable
-                attendance_records = self.db.get_attendance_by_session(timetable_id)
-                
-                for record in attendance_records:
-                    all_attendance.append({
-                        'class_name': class_name,
-                        'day': day,
-                        'time_slot': time_slot,
-                        'student_id': record[6],  # student_code from students table
-                        'student_name': record[7],  # name from students table
-                        'email': record[8],  # email from students table
-                        'timestamp': record[3],
-                        'status': record[4],
-                        'confidence': record[5] if record[5] else 'N/A'
-                    })
-            
-            # Write to CSV
-            if all_attendance:
-                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Class Name', 'Day', 'Time Slot', 'Student ID', 'Student Name', 
-                                'Email', 'Timestamp', 'Status', 'Confidence Score']
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    
-                    writer.writeheader()
-                    for record in all_attendance:
-                        writer.writerow({
-                            'Class Name': record['class_name'],
-                            'Day': record['day'],
-                            'Time Slot': record['time_slot'],
-                            'Student ID': record['student_id'],
-                            'Student Name': record['student_name'],
-                            'Email': record['email'],
-                            'Timestamp': record['timestamp'],
-                            'Status': record['status'],
-                            'Confidence Score': record['confidence']
-                        })
-                
-                return filename, f"Successfully exported {len(all_attendance)} attendance records"
-            else:
-                return None, "No attendance records found for this faculty"
-        
-        except Exception as e:
-            return None, f"Error exporting faculty attendance: {str(e)}"
-    
-    def export_session_attendance(self, timetable_id, class_name):
-        """Export attendance records for a specific session/class"""
-        try:
-            # Get attendance for this session
-            attendance_records = self.db.get_attendance_by_session(timetable_id)
-            
-            if not attendance_records:
-                return None, "No attendance records found for this session"
-            
-            # Prepare filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = os.path.join(
-                self.export_dir,
-                f"Session_{class_name.replace(' ', '_')}_{timestamp}.csv"
-            )
-            
-            # Write to CSV
-            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['Student ID', 'Student Name', 'Email', 'Timestamp', 'Status', 'Confidence Score']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                
-                writer.writeheader()
-                for record in attendance_records:
-                    writer.writerow({
-                        'Student ID': record[6],  # student_code from students table
-                        'Student Name': record[7],  # name from students table
-                        'Email': record[8],  # email from students table
-                        'Timestamp': record[3],
-                        'Status': record[4],
-                        'Confidence Score': record[5] if record[5] else 'N/A'
-                    })
-            
-            return filename, f"Successfully exported {len(attendance_records)} attendance records"
-        
-        except Exception as e:
-            return None, f"Error exporting session attendance: {str(e)}"
-    
-    def export_all_attendance(self):
-        """Export all attendance records for all faculties"""
-        try:
-            faculties = self.db.get_all_faculties()
-            
-            if not faculties:
-                return None, "No faculties found"
-            
-            # Prepare filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = os.path.join(
-                self.export_dir,
-                f"All_Attendance_{timestamp}.csv"
-            )
-            
-            # Collect all attendance data
-            all_attendance = []
-            for faculty in faculties:
-                faculty_id = faculty[0]
-                faculty_name = faculty[1]
-                
-                timetables = self.db.get_faculty_timetables(faculty_id)
-                
-                for timetable in timetables:
-                    timetable_id = timetable[0]
-                    class_name = timetable[2]
-                    day = timetable[3]
-                    time_slot = f"{timetable[4]} - {timetable[5]}"
-                    
-                    attendance_records = self.db.get_attendance_by_session(timetable_id)
-                    
-                    for record in attendance_records:
-                        all_attendance.append({
-                            'faculty_name': faculty_name,
-                            'class_name': class_name,
-                            'day': day,
-                            'time_slot': time_slot,
-                            'student_id': record[6],
-                            'student_name': record[7],
-                            'email': record[8],
-                            'timestamp': record[3],
-                            'status': record[4],
-                            'confidence': record[5] if record[5] else 'N/A'
-                        })
-            
-            # Write to CSV
-            if all_attendance:
-                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Faculty Name', 'Class Name', 'Day', 'Time Slot', 'Student ID', 
-                                'Student Name', 'Email', 'Timestamp', 'Status', 'Confidence Score']
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    
-                    writer.writeheader()
-                    for record in all_attendance:
-                        writer.writerow({
-                            'Faculty Name': record['faculty_name'],
-                            'Class Name': record['class_name'],
-                            'Day': record['day'],
-                            'Time Slot': record['time_slot'],
-                            'Student ID': record['student_id'],
-                            'Student Name': record['student_name'],
-                            'Email': record['email'],
-                            'Timestamp': record['timestamp'],
-                            'Status': record['status'],
-                            'Confidence Score': record['confidence']
-                        })
-                
-                return filename, f"Successfully exported {len(all_attendance)} total attendance records"
-            else:
-                return None, "No attendance records found"
-        
-        except Exception as e:
-            return None, f"Error exporting all attendance: {str(e)}"
-    
-    def export_faculty_summary(self, faculty_id, faculty_name):
-        """Export attendance summary for a faculty (count of present/absent per class)"""
-        try:
-            timetables = self.db.get_faculty_timetables(faculty_id)
-            
-            if not timetables:
-                return None, "No timetables found for this faculty"
-            
-            # Prepare filename
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = os.path.join(
-                self.export_dir,
-                f"Faculty_Summary_{faculty_name.replace(' ', '_')}_{timestamp}.csv"
-            )
-            
-            # Collect summary data
-            summary_data = []
-            for timetable in timetables:
-                timetable_id = timetable[0]
-                class_name = timetable[2]
-                day = timetable[3]
-                time_slot = f"{timetable[4]} - {timetable[5]}"
-                
-                attendance_records = self.db.get_attendance_by_session(timetable_id)
-                present_count = len(attendance_records)
-                
-                # Get total students in the class (from database)
-                all_students = self.db.get_all_students()
-                total_students = len(all_students) if all_students else 0
-                absent_count = total_students - present_count
-                
-                summary_data.append({
-                    'class_name': class_name,
-                    'day': day,
-                    'time_slot': time_slot,
-                    'total_students': total_students,
-                    'present_count': present_count,
-                    'absent_count': absent_count,
-                    'attendance_percentage': (present_count / total_students * 100) if total_students > 0 else 0
+
+    # ── Internal helper ────────────────────────────────────────────────────
+    def _make_csv_bytes(self, fieldnames: list, rows: list[dict]) -> bytes:
+        """Write rows to an in-memory CSV and return UTF-8 bytes."""
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        return buf.getvalue().encode("utf-8")
+
+    # ── Session attendance (used right after confirm) ───────────────────────
+    def build_session_csv(self, timetable_id: int, class_name: str,
+                          present_names: list[str]) -> tuple[bytes, str]:
+        """
+        Build a CSV for a single lecture session.
+        Returns (csv_bytes, suggested_filename).
+        """
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Attendance_{class_name.replace(' ', '_')}_{ts}.csv"
+
+        attendance_records = self.db.get_attendance_by_session(timetable_id) or []
+
+        rows = []
+        for record in attendance_records:
+            # record indices from get_attendance_by_session query
+            rows.append({
+                "Student ID":       record[6] if len(record) > 6 else "",
+                "Student Name":     record[7] if len(record) > 7 else "",
+                "Email":            record[8] if len(record) > 8 else "",
+                "Timestamp":        record[3] if len(record) > 3 else "",
+                "Status":           record[4] if len(record) > 4 else "Present",
+                "Confidence Score": record[5] if len(record) > 5 else "N/A",
+            })
+
+        if not rows:
+            # Fallback: build from the present_names list passed in
+            for name in present_names:
+                rows.append({
+                    "Student ID": "",
+                    "Student Name": name,
+                    "Email": "",
+                    "Timestamp": datetime.now().isoformat(),
+                    "Status": "Present",
+                    "Confidence Score": "N/A",
                 })
-            
-            # Write to CSV
-            if summary_data:
-                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Class Name', 'Day', 'Time Slot', 'Total Students', 'Present', 'Absent', 'Attendance %']
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    
-                    writer.writeheader()
-                    for record in summary_data:
-                        writer.writerow({
-                            'Class Name': record['class_name'],
-                            'Day': record['day'],
-                            'Time Slot': record['time_slot'],
-                            'Total Students': record['total_students'],
-                            'Present': record['present_count'],
-                            'Absent': record['absent_count'],
-                            'Attendance %': f"{record['attendance_percentage']:.2f}%"
-                        })
-                
-                return filename, f"Successfully exported summary for {len(summary_data)} classes"
-            else:
-                return None, "No class data found"
-        
-        except Exception as e:
-            return None, f"Error exporting faculty summary: {str(e)}"
+
+        fieldnames = ["Student ID", "Student Name", "Email",
+                      "Timestamp", "Status", "Confidence Score"]
+        return self._make_csv_bytes(fieldnames, rows), filename
+
+    # ── Full faculty attendance export ─────────────────────────────────────
+    def build_faculty_csv(self, faculty_id: int, faculty_name: str) -> tuple[bytes, str]:
+        """
+        Build a CSV of ALL attendance for a faculty member.
+        Returns (csv_bytes, suggested_filename).
+        """
+        timetables = self.db.get_faculty_timetables(faculty_id)
+        if not timetables:
+            return b"", "No timetable data."
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Faculty_{faculty_name.replace(' ', '_')}_{ts}.csv"
+
+        rows = []
+        for tt in timetables:
+            timetable_id = tt[0]
+            class_name   = tt[2]
+            day          = tt[3]
+            time_slot    = f"{tt[4]} - {tt[5]}"
+
+            for record in (self.db.get_attendance_by_session(timetable_id) or []):
+                rows.append({
+                    "Class Name":      class_name,
+                    "Day":             day,
+                    "Time Slot":       time_slot,
+                    "Student ID":      record[6] if len(record) > 6 else "",
+                    "Student Name":    record[7] if len(record) > 7 else "",
+                    "Email":           record[8] if len(record) > 8 else "",
+                    "Timestamp":       record[3] if len(record) > 3 else "",
+                    "Status":          record[4] if len(record) > 4 else "",
+                    "Confidence Score": record[5] if len(record) > 5 else "N/A",
+                })
+
+        fieldnames = ["Class Name", "Day", "Time Slot", "Student ID",
+                      "Student Name", "Email", "Timestamp", "Status", "Confidence Score"]
+        return self._make_csv_bytes(fieldnames, rows), filename
+
+    # ── Absent list CSV ────────────────────────────────────────────────────
+    def build_absent_csv(self, absent_list: list[dict], class_name: str) -> tuple[bytes, str]:
+        """Build an absent-students CSV from the review page absent list."""
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Absent_{class_name.replace(' ', '_')}_{ts}.csv"
+        rows = [
+            {"GR Number": s.get("employee_id", ""),
+             "Student Name": s.get("name", ""),
+             "Status": "Absent",
+             "Date": datetime.now().strftime("%Y-%m-%d"),
+             "Class": class_name}
+            for s in absent_list
+        ]
+        fieldnames = ["GR Number", "Student Name", "Status", "Date", "Class"]
+        return self._make_csv_bytes(fieldnames, rows), filename

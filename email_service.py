@@ -280,6 +280,49 @@ Attendance System
             return True, f"Report sent successfully to {faculty_email}"
         except Exception as e:
             return False, f"Error sending report: {str(e)}"
+
+    def send_csv_attachment(self, recipient_email: str, recipient_name: str,
+                            csv_bytes: bytes, filename: str,
+                            subject: str = None, extra_html: str = None) -> tuple:
+        """
+        Send a CSV as an in-memory attachment — NO file is written to disk.
+        csv_bytes : raw UTF-8 bytes of the CSV content
+        filename  : suggested attachment filename shown in email client
+        """
+        try:
+            recipient_email = str(recipient_email).strip()
+            if not self.validate_email(recipient_email):
+                return False, f"Invalid email: {recipient_email}"
+
+            subject = subject or f"Attendance Report — {datetime.now().strftime('%d %b %Y %H:%M')}"
+
+            msg = MIMEMultipart('mixed')
+            msg['Subject'] = subject
+            msg['From']    = self.sender_email
+            msg['To']      = recipient_email
+
+            plain = f"Dear {recipient_name},\n\nPlease find the attendance report attached.\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nBest regards,\nAttendance System"
+            msg.attach(MIMEText(plain, 'plain'))
+
+            if extra_html:
+                msg.attach(MIMEText(extra_html, 'html'))
+
+            # Attach CSV bytes directly — no temp file
+            part = MIMEBase('text', 'csv')
+            part.set_payload(csv_bytes)
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+            msg.attach(part)
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.sender_email, self.sender_password)
+                server.send_message(msg)
+
+            return True, f"Report emailed to {recipient_email}"
+        except Exception as e:
+            return False, f"Email error: {str(e)}"
+
     
     def send_attendance_alert(self, recipient_email, recipient_name, alert_type, details):
         """Send attendance alerts to students or faculty"""

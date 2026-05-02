@@ -890,15 +890,20 @@ def api_multi_photo_attend():
 def api_confirm_attendance():
     """
     Receives the faculty-reviewed final present list.
-    Marks all confirmed students present, exports CSVs.
+    Marks all confirmed students present, then emails TWO CSVs to the faculty:
+      1. Present list  (who was recognised & confirmed)
+      2. Absent list   (registered students not in present list)
+    No files are written to disk.
     """
     session_info = session.get("active_session")
     if not session_info:
         return jsonify({"success": False, "message": "No active class session."})
 
     data         = request.json
-    present_list = data.get("present", [])   # list of {person_id, name, employee_id, confidence}
+    present_list = data.get("present", [])
+    absent_list  = data.get("absent",  [])
     timetable_id = session_info["timetable_id"]
+    class_name   = session_info.get("class_name", "Class")
 
     db = get_db()
     from attendance_marker import attendance_marker
@@ -906,13 +911,12 @@ def api_confirm_attendance():
     skipped = []
 
     for person in present_list:
-        gr_num = (person.get("gr_number") or "").strip()
-        name   = person.get("name", "Unknown")
+        gr_num     = (person.get("gr_number") or person.get("employee_id") or "").strip()
+        name       = person.get("name", "Unknown")
         confidence = person.get("confidence", 0)
         try:
             stu = db.get_student_by_gr_number(gr_num) if gr_num else None
             if not stu:
-                # Auto-register into student table
                 email = f"{(gr_num or name).replace(' ','_').lower()}@student.local"
                 try:
                     db.add_student(gr_num or name, '', name, email, "Unassigned")
@@ -927,33 +931,50 @@ def api_confirm_attendance():
         except Exception as e:
             skipped.append(f"{name} (error: {e})")
 
-    # Export CSVs
-    csv_msg = ""
+    # ── Email CSV reports to faculty (no disk writes) ──────────────────────
+    email_msg = "Email not configured."
     try:
-        _, csv_msg = CSVExportService().export_faculty_attendance(
-            session['faculty_id'], session['faculty_name']
+        from csv_export_service import CSVExportService
+        from email_service import email_service
+
+        csv_svc   = CSVExportService()
+        fac_email = session.get("faculty_email", "")
+        fac_name  = session.get("faculty_name", "Faculty")
+
+        present_bytes, present_fname = csv_svc.build_session_csv(
+            timetable_id, class_name, marked
         )
+        absent_bytes, absent_fname = csv_svc.build_absent_csv(
+            absent_list, class_name
+        )
+
+        if fac_email:
+            subject = (f"Attendance Report — {class_name} — "
+                       f"{datetime.now().strftime('%d %b %Y %H:%M IST')}")
+
+            # Send present CSV
+            ok1, msg1 = email_service.send_csv_attachment(
+                fac_email, fac_name, present_bytes, present_fname, subject=subject
+            )
+            # Send absent CSV
+            ok2, msg2 = email_service.send_csv_attachment(
+                fac_email, fac_name, absent_bytes, absent_fname,
+                subject=subject + " (Absent List)"
+            )
+            email_msg = f"{msg1} | {msg2}"
+        else:
+            email_msg = "Faculty email not set — reports not sent."
     except Exception as e:
-        csv_msg = f"CSV export failed: {e}"
+        email_msg = f"Email error: {e}"
 
     return jsonify({
-        "success":     True,
-        "marked":      marked,
-        "skipped":     skipped,
+        "success":      True,
+        "marked":       marked,
+        "skipped":      skipped,
         "marked_count": len(marked),
-        "csv_message": csv_msg,
+        "email_status": email_msg,
     })
 
-@app.route("/api/faculty/export_csv", methods=["POST"])
-@faculty_required
-def api_faculty_export_csv():
-    try:
-        fname, msg = CSVExportService().export_faculty_attendance(
-            session['faculty_id'], session['faculty_name']
-        )
-        return jsonify({"success": bool(fname), "message": msg, "file": fname})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
 
 @app.route("/admin/faces")
 @admin_required
