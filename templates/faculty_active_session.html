@@ -427,7 +427,10 @@
         try {
             const res  = await fetch('{{ url_for("api_confirm_attendance") }}', {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ present: reviewData.present })
+                body: JSON.stringify({ 
+                    present: reviewData.present,
+                    absent: reviewData.absent
+                })
             });
             const data = await res.json();
             if (!data.success) {
@@ -446,7 +449,7 @@
         document.getElementById('reviewPane').style.display = 'none';
         document.getElementById('donePane').style.display   = 'block';
         document.getElementById('doneTitle').textContent    = `${data.marked_count} students marked present!`;
-        document.getElementById('doneMsg').textContent      = data.csv_message || 'Attendance recorded.';
+        document.getElementById('doneMsg').textContent      = data.email_status || data.csv_message || 'Attendance recorded.';
         document.getElementById('doneBadges').innerHTML     =
             (data.marked || []).map(n => `<span class="badge-present">✓ ${n}</span>`).join('');
     }
