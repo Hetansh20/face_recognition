@@ -627,11 +627,9 @@ def faculty_login():
                     "time": f"{active_class[4]} - {active_class[5]}"
                 }
                 
-                # Natively turn on the camera via MJPEG FaceEngine
-                global ACTIVE_ENGINE
-                if FaceEngine is not None and (ACTIVE_ENGINE is None or not ACTIVE_ENGINE.is_running):
-                    ACTIVE_ENGINE = FaceEngine(timetable_id=tid, session_id=sid)
-                    ACTIVE_ENGINE.start()
+                # NOTE: Live camera (FaceEngine) is disabled on cloud deployments
+                # as Railway servers have no physical camera.
+                # Faculty uses Group Photo Attendance instead.
 
             return jsonify({"success": True})
         return jsonify({"success": False, "message": msg})
