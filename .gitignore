@@ -7,12 +7,32 @@ __pycache__/
 .env
 *.env
 
-# Reports
+# Reports & local data
 attendance_reports/
+attendance_log.txt
+*.resolved
 
 # IDE
 .vscode/
 .idea/
 *.DS_Store
 
+# Local DB (use Railway PostgreSQL in production)
 attendance_system.db
+
+# Scratch / one-time utility scripts
+scratch/
+
+# Personal docs
+RESUME_ENTRY.md
+
+# Standalone / legacy scripts (not used by Flask server)
+admin_ui.py
+main_launcher.py
+faculty_ui.py
+deepface_attendance_*.py
+insightface_attendance.py
+gpu_manager.py
+repair_models.py
+test_model.py
+face.py
