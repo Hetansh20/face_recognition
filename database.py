@@ -200,6 +200,13 @@ class Database:
         # ── Data Repair: Fix missing class/batch links ─────────────
         self.repair_data_mappings()
         
+        # ── Auto-seed on first boot (useful for Railway) ───────────
+        try:
+            import seed_db
+            seed_db.seed(self.conn)
+        except Exception as e:
+            print(f"[DB Seed Error] Failed to run seed_db: {e}")
+
         self.disconnect()
 
     def _add_column_if_missing(self, table, column, col_type):
