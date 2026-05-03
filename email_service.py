@@ -7,6 +7,7 @@ from datetime import datetime
 from database import Database
 import os
 import re
+import requests
 
 class EmailService:
     """Email service for sending attendance summaries"""
@@ -14,8 +15,9 @@ class EmailService:
     def __init__(self, smtp_server="smtp.gmail.com", smtp_port=587):
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
-        self.sender_email = os.getenv("SENDER_EMAIL", "your-email@gmail.com")
+        self.sender_email = os.getenv("SENDER_EMAIL", "attendance@contactless.local")
         self.sender_password = os.getenv("SENDER_PASSWORD", "your-app-password")
+        self.brevo_api_key = os.getenv("BREVO_API_KEY", "")
         self.db = Database()
         
         # Load email configuration from file
@@ -27,28 +29,33 @@ class EmailService:
         return re.match(pattern, str(email).strip()) is not None
     
     def send_email(self, recipient_email, subject, body, html_body=None):
-        """Send an email"""
+        """Send an email using Brevo API"""
         try:
             recipient_email = str(recipient_email).strip()
             if not self.validate_email(recipient_email):
                 return False, f"Invalid email address: {recipient_email}"
             
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = self.sender_email
-            msg['To'] = recipient_email
-            
-            msg.attach(MIMEText(body, 'plain'))
-            
+            url = "https://api.brevo.com/v3/smtp/email"
+            headers = {
+                "accept": "application/json",
+                "api-key": self.brevo_api_key,
+                "content-type": "application/json"
+            }
+            payload = {
+                "sender": {"name": "Attendance System", "email": "admin@attendance.local"},
+                "to": [{"email": recipient_email}],
+                "subject": subject,
+                "textContent": body
+            }
             if html_body:
-                msg.attach(MIMEText(html_body, 'html'))
-            
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.sender_password)
-                server.send_message(msg)
-            
-            return True, "Email sent successfully"
+                payload["htmlContent"] = html_body
+
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            if response.status_code in [200, 201, 202]:
+                return True, "Email sent successfully"
+            else:
+                return False, f"Brevo API error: {response.text}"
+                
         except Exception as e:
             return False, f"Error sending email: {str(e)}"
     
@@ -285,46 +292,45 @@ Attendance System
                             csv_bytes: bytes, filename: str,
                             subject: str = None, extra_html: str = None) -> tuple:
         """
-        Send a CSV as an in-memory attachment — NO file is written to disk.
+        Send a CSV as an in-memory attachment via Brevo API.
         csv_bytes : raw UTF-8 bytes of the CSV content
         filename  : suggested attachment filename shown in email client
         """
+        import base64
         try:
             recipient_email = str(recipient_email).strip()
             if not self.validate_email(recipient_email):
                 return False, f"Invalid email: {recipient_email}"
 
             subject = subject or f"Attendance Report — {datetime.now().strftime('%d %b %Y %H:%M')}"
-
-            msg = MIMEMultipart('mixed')
-            msg['Subject'] = subject
-            msg['From']    = self.sender_email
-            msg['To']      = recipient_email
-
             plain = f"Dear {recipient_name},\n\nPlease find the attendance report attached.\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nBest regards,\nAttendance System"
-            msg.attach(MIMEText(plain, 'plain'))
 
+            url = "https://api.brevo.com/v3/smtp/email"
+            headers = {
+                "accept": "application/json",
+                "api-key": self.brevo_api_key,
+                "content-type": "application/json"
+            }
+            payload = {
+                "sender": {"name": "Attendance System", "email": "admin@attendance.local"},
+                "to": [{"email": recipient_email, "name": recipient_name}],
+                "subject": subject,
+                "textContent": plain,
+                "attachment": [
+                    {
+                        "content": base64.b64encode(csv_bytes).decode('utf-8'),
+                        "name": filename
+                    }
+                ]
+            }
             if extra_html:
-                msg.attach(MIMEText(extra_html, 'html'))
+                payload["htmlContent"] = extra_html
 
-            # Attach CSV bytes directly — no temp file
-            part = MIMEBase('text', 'csv')
-            part.set_payload(csv_bytes)
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-            msg.attach(part)
-
-            try:
-                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=5) as server:
-                    server.starttls()
-                    server.login(self.sender_email, self.sender_password)
-                    server.send_message(msg)
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            if response.status_code in [200, 201, 202]:
                 return True, f"Report emailed to {recipient_email}"
-            except Exception as e:
-                err_str = str(e)
-                if "101" in err_str or "unreachable" in err_str.lower() or "timeout" in err_str.lower():
-                    return False, f"Email failed: Railway restricts outbound SMTP ports (Errno 101/Timeout). Use an API like SendGrid/Resend instead."
-                return False, f"Email error: {err_str}"
+            else:
+                return False, f"Brevo Error: {response.text}"
 
         except Exception as e:
             return False, f"Email prep error: {str(e)}"
