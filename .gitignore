@@ -35,4 +35,7 @@ insightface_attendance.py
 gpu_manager.py
 repair_models.py
 test_model.py
-face.py
+face.py
+
+# attendance db
+attendance_system.db
