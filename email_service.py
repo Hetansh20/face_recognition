@@ -15,8 +15,8 @@ class EmailService:
     def __init__(self, smtp_server="smtp.gmail.com", smtp_port=587):
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
-        self.sender_email = os.getenv("SENDER_EMAIL", "attendance@contactless.local")
-        self.sender_password = os.getenv("SENDER_PASSWORD", "your-app-password")
+        self.sender_email = os.getenv("SENDER_EMAIL", "anshraythatha123@gmail.com")
+        self.sender_password = os.getenv("SENDER_PASSWORD", "bjrxmajojbeohqse")
         self.brevo_api_key = os.getenv("BREVO_API_KEY", "")
         self.db = Database()
         
@@ -35,26 +35,56 @@ class EmailService:
             if not self.validate_email(recipient_email):
                 return False, f"Invalid email address: {recipient_email}"
             
-            url = "https://api.brevo.com/v3/smtp/email"
-            headers = {
-                "accept": "application/json",
-                "api-key": self.brevo_api_key,
-                "content-type": "application/json"
-            }
-            payload = {
-                "sender": {"name": "Attendance System", "email": self.sender_email},
-                "to": [{"email": recipient_email}],
-                "subject": subject,
-                "textContent": body
-            }
-            if html_body:
-                payload["htmlContent"] = html_body
+            # Try Brevo first if API key exists
+            if self.brevo_api_key:
+                url = "https://api.brevo.com/v3/smtp/email"
+                headers = {
+                    "accept": "application/json",
+                    "api-key": self.brevo_api_key,
+                    "content-type": "application/json"
+                }
+                payload = {
+                    "sender": {"name": "Attendance System", "email": self.sender_email},
+                    "to": [{"email": recipient_email}],
+                    "subject": subject,
+                    "textContent": body
+                }
+                if html_body:
+                    payload["htmlContent"] = html_body
 
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            if response.status_code in [200, 201, 202]:
-                return True, "Email sent successfully"
-            else:
-                return False, f"Brevo API error: {response.text}"
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                if response.status_code in [200, 201, 202]:
+                    return True, "Email sent successfully via Brevo"
+                else:
+                    # Log Brevo error but fall back to SMTP
+                    print(f"Brevo API error: {response.text}")
+            
+            # Fallback to SMTP (Gmail)
+            return self.send_email_via_smtp(recipient_email, subject, body, html_body)
+                
+        except Exception as e:
+            return False, f"Error sending email: {str(e)}"
+
+    def send_email_via_smtp(self, recipient_email, subject, body, html_body=None):
+        """Send an email using SMTP (Gmail)"""
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Attendance System <{self.sender_email}>"
+            msg['To'] = recipient_email
+            msg['Subject'] = subject
+
+            msg.attach(MIMEText(body, 'plain'))
+            if html_body:
+                msg.attach(MIMEText(html_body, 'html'))
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.sender_email, self.sender_password)
+                server.send_message(msg)
+            
+            return True, "Email sent successfully via SMTP"
+        except Exception as e:
+            return False, f"SMTP error: {str(e)}"
                 
         except Exception as e:
             return False, f"Error sending email: {str(e)}"
@@ -267,34 +297,39 @@ Best regards,
 Attendance System
             """
             
-            url = "https://api.brevo.com/v3/smtp/email"
-            headers = {
-                "accept": "application/json",
-                "api-key": self.brevo_api_key,
-                "content-type": "application/json"
-            }
-            payload = {
-                "sender": {"name": "Attendance System", "email": self.sender_email},
-                "to": [{"email": faculty_email}],
-                "subject": subject,
-                "textContent": body
-            }
-            
-            if os.path.exists(csv_filename):
-                with open(csv_filename, 'rb') as attachment:
-                    file_bytes = attachment.read()
-                    payload["attachment"] = [
-                        {
-                            "content": base64.b64encode(file_bytes).decode('utf-8'),
-                            "name": os.path.basename(csv_filename)
-                        }
-                    ]
-            
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            if response.status_code in [200, 201, 202]:
-                return True, f"Report sent successfully to {faculty_email}"
-            else:
-                return False, f"Brevo API error: {response.text}"
+            # Try Brevo first if API key exists
+            if self.brevo_api_key:
+                url = "https://api.brevo.com/v3/smtp/email"
+                headers = {
+                    "accept": "application/json",
+                    "api-key": self.brevo_api_key,
+                    "content-type": "application/json"
+                }
+                payload = {
+                    "sender": {"name": "Attendance System", "email": self.sender_email},
+                    "to": [{"email": faculty_email}],
+                    "subject": subject,
+                    "textContent": body
+                }
+                
+                if os.path.exists(csv_filename):
+                    with open(csv_filename, 'rb') as attachment:
+                        file_bytes = attachment.read()
+                        payload["attachment"] = [
+                            {
+                                "content": base64.b64encode(file_bytes).decode('utf-8'),
+                                "name": os.path.basename(csv_filename)
+                            }
+                        ]
+                
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                if response.status_code in [200, 201, 202]:
+                    return True, f"Report sent successfully to {faculty_email} via Brevo"
+                else:
+                    print(f"Brevo API error: {response.text}")
+
+            # Fallback to SMTP
+            return self.send_csv_report_to_faculty_with_retry(faculty_email, faculty_name, csv_filename, report_type)
                 
         except Exception as e:
             return False, f"Error sending report: {str(e)}"
@@ -316,32 +351,57 @@ Attendance System
             subject = subject or f"Attendance Report — {datetime.now().strftime('%d %b %Y %H:%M')}"
             plain = f"Dear {recipient_name},\n\nPlease find the attendance report attached.\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nBest regards,\nAttendance System"
 
-            url = "https://api.brevo.com/v3/smtp/email"
-            headers = {
-                "accept": "application/json",
-                "api-key": self.brevo_api_key,
-                "content-type": "application/json"
-            }
-            payload = {
-                "sender": {"name": "Attendance System", "email": self.sender_email},
-                "to": [{"email": recipient_email, "name": recipient_name}],
-                "subject": subject,
-                "textContent": plain,
-                "attachment": [
-                    {
-                        "content": base64.b64encode(csv_bytes).decode('utf-8'),
-                        "name": filename
-                    }
-                ]
-            }
-            if extra_html:
-                payload["htmlContent"] = extra_html
+            # Try Brevo first if API key exists
+            if self.brevo_api_key:
+                url = "https://api.brevo.com/v3/smtp/email"
+                headers = {
+                    "accept": "application/json",
+                    "api-key": self.brevo_api_key,
+                    "content-type": "application/json"
+                }
+                payload = {
+                    "sender": {"name": "Attendance System", "email": self.sender_email},
+                    "to": [{"email": recipient_email, "name": recipient_name}],
+                    "subject": subject,
+                    "textContent": plain,
+                    "attachment": [
+                        {
+                            "content": base64.b64encode(csv_bytes).decode('utf-8'),
+                            "name": filename
+                        }
+                    ]
+                }
+                if extra_html:
+                    payload["htmlContent"] = extra_html
 
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            if response.status_code in [200, 201, 202]:
-                return True, f"Report emailed to {recipient_email}"
-            else:
-                return False, f"Brevo Error: {response.text}"
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                if response.status_code in [200, 201, 202]:
+                    return True, f"Report emailed to {recipient_email} via Brevo"
+                else:
+                    print(f"Brevo API error: {response.text}")
+
+            # Fallback to SMTP
+            msg = MIMEMultipart()
+            msg['Subject'] = subject
+            msg['From'] = f"Attendance System <{self.sender_email}>"
+            msg['To'] = recipient_email
+            
+            msg.attach(MIMEText(plain, 'plain'))
+            if extra_html:
+                msg.attach(MIMEText(extra_html, 'html'))
+                
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(csv_bytes)
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={filename}')
+            msg.attach(part)
+            
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.sender_email, self.sender_password)
+                server.send_message(msg)
+                
+            return True, f"Report emailed to {recipient_email} via SMTP"
 
         except Exception as e:
             return False, f"Email prep error: {str(e)}"
