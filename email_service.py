@@ -8,6 +8,10 @@ from database import Database
 import os
 import re
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class EmailService:
     """Email service for sending attendance summaries"""
@@ -15,8 +19,8 @@ class EmailService:
     def __init__(self, smtp_server="smtp.gmail.com", smtp_port=587):
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
-        self.sender_email = os.getenv("SENDER_EMAIL", "anshraythatha123@gmail.com")
-        self.sender_password = os.getenv("SENDER_PASSWORD", "bjrxmajojbeohqse")
+        self.sender_email = os.getenv("SENDER_EMAIL", "")
+        self.sender_password = os.getenv("SENDER_PASSWORD", "")
         self.brevo_api_key = os.getenv("BREVO_API_KEY", "")
         self.db = Database()
         

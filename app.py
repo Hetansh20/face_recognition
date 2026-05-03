@@ -1,6 +1,11 @@
 from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response
 import os
 import subprocess
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 from datetime import datetime
 from database import Database
 from timetable_manager import timetable_manager
