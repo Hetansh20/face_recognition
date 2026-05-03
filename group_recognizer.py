@@ -24,8 +24,8 @@ BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 FACE_DB   = os.path.join(BASE_DIR, "face_database.json")
 EMB_CACHE = os.path.join(BASE_DIR, "face_embeddings_insightface.pkl")
 
-# Threshold for a valid match (restored to 0.60 to prevent false positives)
-COSINE_THRESHOLD = 0.60
+# Threshold for a valid match (increased to 0.75 to aggressively maximize matches)
+COSINE_THRESHOLD = 0.75
 
 
 
@@ -111,9 +111,9 @@ def process_group_photo(image_bytes: bytes, target_pids: list = None) -> dict:
     from insightface.app import FaceAnalysis
     fa = FaceAnalysis(name="buffalo_sc")   # lightweight model (~30MB vs 281MB for buffalo_l)
     try:
-        fa.prepare(ctx_id=-1, det_thresh=0.35, det_size=(320, 320))  # CPU + smaller size = less RAM
+        fa.prepare(ctx_id=-1, det_thresh=0.25, det_size=(640, 640))  # Maximize detection of small faces
     except Exception:
-        fa.prepare(ctx_id=-1, det_thresh=0.35, det_size=(320, 320))
+        fa.prepare(ctx_id=-1, det_thresh=0.25, det_size=(640, 640))
 
     detected = fa.get(frame)
     print(f"[GroupRecog] InsightFace full-frame: {len(detected)} faces found")
@@ -165,7 +165,7 @@ def process_group_photo(image_bytes: bytes, target_pids: list = None) -> dict:
                 if cell in matched_centers:
                     continue  # already processed this face
                 # Extract crop with padding and get InsightFace embedding
-                pad  = 20
+                pad  = 40
                 crop = frame[max(0,y1-pad):min(h,y2+pad), max(0,x1-pad):min(w,x2+pad)]
                 faces_in_crop = fa.get(crop)
                 if faces_in_crop:
