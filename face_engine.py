@@ -169,7 +169,7 @@ class FaceEngine:
             best_pid, best_dist = all_dists[0]
             sec_dist = all_dists[1][1] if len(all_dists) > 1 else max(1.0, best_dist+0.2)
             
-            threshold = 0.45
+            threshold = 0.70
             margin = 0.05
             
             # Simple voting logic

@@ -24,8 +24,8 @@ BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 FACE_DB   = os.path.join(BASE_DIR, "face_database.json")
 EMB_CACHE = os.path.join(BASE_DIR, "face_embeddings_insightface.pkl")
 
-# Threshold for a valid match (0.55 gives good recall in single-photo mode)
-COSINE_THRESHOLD = 0.55
+# Threshold for a valid match (increased to 0.85 for older photos/glasses)
+COSINE_THRESHOLD = 0.85
 
 
 
