@@ -41,7 +41,8 @@ class CSVExportService:
         for record in attendance_records:
             # record indices from get_attendance_by_session query
             rows.append({
-                "Student ID":       record[6] if len(record) > 6 else "",
+                "GR Number":        record[6] if len(record) > 6 else "",
+                "Enrollment Number": record[9] if len(record) > 9 else "",
                 "Student Name":     record[7] if len(record) > 7 else "",
                 "Email":            record[8] if len(record) > 8 else "",
                 "Timestamp":        record[3] if len(record) > 3 else "",
@@ -53,7 +54,8 @@ class CSVExportService:
             # Fallback: build from the present_names list passed in
             for name in present_names:
                 rows.append({
-                    "Student ID": "",
+                    "GR Number": "",
+                    "Enrollment Number": "",
                     "Student Name": name,
                     "Email": "",
                     "Timestamp": datetime.now().isoformat(),
@@ -61,7 +63,10 @@ class CSVExportService:
                     "Confidence Score": "N/A",
                 })
 
-        fieldnames = ["Student ID", "Student Name", "Email",
+        # Sort rows by Enrollment Number ascending
+        rows.sort(key=lambda x: str(x.get("Enrollment Number", "")))
+
+        fieldnames = ["GR Number", "Enrollment Number", "Student Name", "Email",
                       "Timestamp", "Status", "Confidence Score"]
         return self._make_csv_bytes(fieldnames, rows), filename
 
@@ -109,11 +114,16 @@ class CSVExportService:
         filename = f"Absent_{class_name.replace(' ', '_')}_{ts}.csv"
         rows = [
             {"GR Number": s.get("employee_id", ""),
+             "Enrollment Number": s.get("enrollment_number", ""),
              "Student Name": s.get("name", ""),
              "Status": "Absent",
              "Date": datetime.now().strftime("%Y-%m-%d"),
              "Class": class_name}
             for s in absent_list
         ]
-        fieldnames = ["GR Number", "Student Name", "Status", "Date", "Class"]
+        
+        # Sort rows by Enrollment Number ascending
+        rows.sort(key=lambda x: str(x.get("Enrollment Number", "")))
+        
+        fieldnames = ["GR Number", "Enrollment Number", "Student Name", "Status", "Date", "Class"]
         return self._make_csv_bytes(fieldnames, rows), filename

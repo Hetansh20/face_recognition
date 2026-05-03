@@ -871,16 +871,19 @@ def api_multi_photo_attend():
             pid  = s['face_pid']
             name = s['name']
             gr   = s['gr_number'] if 'gr_number' in s.keys() else s['student_id']
+            enr  = s['enrollment_number'] if 'enrollment_number' in s.keys() else ''
         except (IndexError, TypeError):
             pid  = s[9]   # face_pid
             name = s[2]   # name
-            gr   = s[1]   # student_id / gr_number
+            gr   = s[10]  # gr_number
+            enr  = s[11]  # enrollment_number
 
         if pid and pid not in present_ids:
             absent_list.append({
                 "person_id":   pid,
                 "name":        name,
                 "employee_id": gr or '',
+                "enrollment_number": enr or ''
             })
 
     return jsonify({

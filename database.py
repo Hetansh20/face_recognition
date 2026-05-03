@@ -444,7 +444,7 @@ class Database:
         self.cursor.execute(
             '''SELECT id, student_id, name, email, department,
                       class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
+                      gr_number, enrollment_number, created_at, is_active
                FROM students WHERE is_active=1 ORDER BY name''')
         r = self.cursor.fetchall(); self.disconnect(); return r
 
@@ -454,7 +454,7 @@ class Database:
         self.cursor.execute(
             '''SELECT id, student_id, name, email, department,
                       class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
+                      gr_number, enrollment_number, created_at, is_active
                FROM students WHERE class_id=? AND is_active=1 ORDER BY name''',
             (class_id,))
         r = self.cursor.fetchall(); self.disconnect(); return r
@@ -465,7 +465,7 @@ class Database:
         self.cursor.execute(
             '''SELECT id, student_id, name, email, department,
                       class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
+                      gr_number, enrollment_number, created_at, is_active
                FROM students WHERE batch_id=? AND is_active=1 ORDER BY name''',
             (batch_id,))
         r = self.cursor.fetchall(); self.disconnect(); return r
@@ -493,7 +493,7 @@ class Database:
         self.cursor.execute(
             '''SELECT id, student_id, name, email, department,
                       class_id, batch_id, roll_number, phone, face_pid,
-                      created_at, is_active
+                      gr_number, enrollment_number, created_at, is_active
                FROM students
                WHERE is_active=1 AND (face_pid IS NULL OR face_pid = '')
                ORDER BY name''')
@@ -606,7 +606,7 @@ class Database:
         self.connect()
         self.cursor.execute('''
             SELECT a.id, a.student_id, a.timetable_id, a.timestamp, a.status, a.confidence_score,
-                   s.gr_number as gr_code, s.name, s.email
+                   s.gr_number as gr_code, s.name, s.email, s.enrollment_number
             FROM attendance a
             JOIN students s ON a.student_id = s.id
             WHERE a.timetable_id = ?
