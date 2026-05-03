@@ -620,11 +620,15 @@ def faculty_login():
                 tid = active_class[0]
                 
                 # Update Flask session to track this class
+                subj = active_class['subject_name'] or ''
+                cname = active_class['class_name'] or ''
+                display_name = f"{subj} - {cname}" if subj else cname
+                
                 session['active_session'] = {
                     "timetable_id": tid,
                     "session_id": sid,
-                    "class_name": active_class[2],
-                    "time": f"{active_class[4]} - {active_class[5]}"
+                    "class_name": display_name,
+                    "time": f"{active_class['start_time']} - {active_class['end_time']}"
                 }
                 
                 # NOTE: Live camera (FaceEngine) is disabled on cloud deployments
@@ -658,11 +662,15 @@ def faculty_dashboard():
     if active_class:
         from attendance_marker import attendance_marker
         session_id_tuple = attendance_marker.start_session(fid, active_class[0])
+        subj = active_class['subject_name'] or ''
+        cname = active_class['class_name'] or ''
+        display_name = f"{subj} - {cname}" if subj else cname
+        
         session_info = {
             "timetable_id": active_class[0],
             "session_id": session_id_tuple[0] if session_id_tuple else None,
-            "class_name": active_class[2],
-            "time": f"{active_class[4]} - {active_class[5]}"
+            "class_name": display_name,
+            "time": f"{active_class['start_time']} - {active_class['end_time']}"
         }
         session['active_session'] = session_info
     

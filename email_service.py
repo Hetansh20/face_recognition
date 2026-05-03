@@ -42,7 +42,7 @@ class EmailService:
                 "content-type": "application/json"
             }
             payload = {
-                "sender": {"name": "Attendance System", "email": "admin@attendance.local"},
+                "sender": {"name": "Attendance System", "email": self.sender_email},
                 "to": [{"email": recipient_email}],
                 "subject": subject,
                 "textContent": body
@@ -274,7 +274,7 @@ Attendance System
                 "content-type": "application/json"
             }
             payload = {
-                "sender": {"name": "Attendance System", "email": "admin@attendance.local"},
+                "sender": {"name": "Attendance System", "email": self.sender_email},
                 "to": [{"email": faculty_email}],
                 "subject": subject,
                 "textContent": body
@@ -323,7 +323,7 @@ Attendance System
                 "content-type": "application/json"
             }
             payload = {
-                "sender": {"name": "Attendance System", "email": "admin@attendance.local"},
+                "sender": {"name": "Attendance System", "email": self.sender_email},
                 "to": [{"email": recipient_email, "name": recipient_name}],
                 "subject": subject,
                 "textContent": plain,
