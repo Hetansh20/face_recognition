@@ -247,16 +247,14 @@ This is an automated report from the Attendance System.
             return False, f"Error sending admin report: {str(e)}"
     
     def send_csv_report_to_faculty(self, faculty_email, faculty_name, csv_filename, report_type="Attendance"):
-        """Send CSV report file to faculty via email"""
+        """Send CSV report file to faculty via email (Brevo API)"""
+        import base64
         try:
             faculty_email = str(faculty_email).strip()
             if not self.validate_email(faculty_email):
                 return False, f"Invalid faculty email address: {faculty_email}"
             
-            msg = MIMEMultipart()
-            msg['Subject'] = f"{report_type} Report - {datetime.now().strftime('%Y-%m-%d')}"
-            msg['From'] = self.sender_email
-            msg['To'] = faculty_email
+            subject = f"{report_type} Report - {datetime.now().strftime('%Y-%m-%d')}"
             
             body = f"""
 Dear {faculty_name},
@@ -269,22 +267,35 @@ Best regards,
 Attendance System
             """
             
-            msg.attach(MIMEText(body, 'plain'))
+            url = "https://api.brevo.com/v3/smtp/email"
+            headers = {
+                "accept": "application/json",
+                "api-key": self.brevo_api_key,
+                "content-type": "application/json"
+            }
+            payload = {
+                "sender": {"name": "Attendance System", "email": "admin@attendance.local"},
+                "to": [{"email": faculty_email}],
+                "subject": subject,
+                "textContent": body
+            }
             
             if os.path.exists(csv_filename):
                 with open(csv_filename, 'rb') as attachment:
-                    part = MIMEBase('application', 'octet-stream')
-                    part.set_payload(attachment.read())
-                    encoders.encode_base64(part)
-                    part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(csv_filename)}')
-                    msg.attach(part)
+                    file_bytes = attachment.read()
+                    payload["attachment"] = [
+                        {
+                            "content": base64.b64encode(file_bytes).decode('utf-8'),
+                            "name": os.path.basename(csv_filename)
+                        }
+                    ]
             
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.sender_password)
-                server.send_message(msg)
-            
-            return True, f"Report sent successfully to {faculty_email}"
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            if response.status_code in [200, 201, 202]:
+                return True, f"Report sent successfully to {faculty_email}"
+            else:
+                return False, f"Brevo API error: {response.text}"
+                
         except Exception as e:
             return False, f"Error sending report: {str(e)}"
 
