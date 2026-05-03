@@ -314,14 +314,20 @@ Attendance System
             part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
             msg.attach(part)
 
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.sender_password)
-                server.send_message(msg)
+            try:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=5) as server:
+                    server.starttls()
+                    server.login(self.sender_email, self.sender_password)
+                    server.send_message(msg)
+                return True, f"Report emailed to {recipient_email}"
+            except Exception as e:
+                err_str = str(e)
+                if "101" in err_str or "unreachable" in err_str.lower() or "timeout" in err_str.lower():
+                    return False, f"Email failed: Railway restricts outbound SMTP ports (Errno 101/Timeout). Use an API like SendGrid/Resend instead."
+                return False, f"Email error: {err_str}"
 
-            return True, f"Report emailed to {recipient_email}"
         except Exception as e:
-            return False, f"Email error: {str(e)}"
+            return False, f"Email prep error: {str(e)}"
 
     
     def send_attendance_alert(self, recipient_email, recipient_name, alert_type, details):
