@@ -1,0 +1,191 @@
+{% extends "admin_base.html" %}
+{% block title %}Faculty Substitutions{% endblock %}
+
+{% block content %}
+<h2>🔄 Faculty Substitution Management</h2>
+<p>Assign a substitute faculty when the original faculty is on leave or unavailable. The substitute can mark attendance for the assigned class.</p>
+
+<div id="sub-alert" class="alert" style="display: none;">
+    <span class="alert-msg"></span>
+    <button type="button" class="close-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+</div>
+
+<!-- ── Assign New Substitution ─────────────────────────────────────── -->
+<div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 1.5rem;">
+    <h3 style="color: var(--accent-blue); margin-bottom: 1rem;">Assign Substitute</h3>
+    <form id="subForm">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label>Original Faculty (on leave)</label>
+                <select id="sub_original" required>
+                    <option value="">Select faculty...</option>
+                    {% for f in faculties %}
+                    <option value="{{ f[0] }}">{{ f[1] }} ({{ f[2] }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Substitute Faculty</label>
+                <select id="sub_substitute" required>
+                    <option value="">Select substitute...</option>
+                    {% for f in faculties %}
+                    <option value="{{ f[0] }}">{{ f[1] }} ({{ f[2] }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label>Timetable (Class)</label>
+                <select id="sub_timetable" required>
+                    <option value="">Select timetable...</option>
+                    {% for t in timetables %}
+                    <option value="{{ t.id }}" data-faculty="{{ t.faculty_id }}">
+                        {{ t.faculty_name }} — {{ t.class_name }} {{ '(' + t.subject + ')' if t.subject else '' }} — {{ t.day }} {{ t.start }}-{{ t.end }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="sub_date" required>
+            </div>
+            <div class="form-group">
+                <label>Reason (optional)</label>
+                <input type="text" id="sub_reason" placeholder="e.g., Sick leave">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Assign Substitute</button>
+    </form>
+</div>
+
+<!-- ── Auto-filter timetables when original faculty is selected ─────── -->
+<script>
+document.getElementById('sub_original').addEventListener('change', function() {
+    const fid = this.value;
+    const sel = document.getElementById('sub_timetable');
+    Array.from(sel.options).forEach(opt => {
+        if (opt.value === '') return;
+        opt.style.display = (!fid || opt.dataset.faculty === fid) ? '' : 'none';
+    });
+});
+
+// Set default date to today
+document.getElementById('sub_date').valueAsDate = new Date();
+</script>
+
+<!-- ── Existing Substitutions ──────────────────────────────────────── -->
+<div style="background: var(--bg-card); padding: 2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 1.5rem;">
+    <h3 style="color: var(--accent-blue); margin-bottom: 1rem;">📋 Active Substitutions</h3>
+
+    {% if substitutions %}
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border-color); text-align: left;">
+                    <th style="padding: 0.75rem;">Date</th>
+                    <th style="padding: 0.75rem;">Original Faculty</th>
+                    <th style="padding: 0.75rem;">Substitute</th>
+                    <th style="padding: 0.75rem;">Class</th>
+                    <th style="padding: 0.75rem;">Time</th>
+                    <th style="padding: 0.75rem;">Reason</th>
+                    <th style="padding: 0.75rem;">Status</th>
+                    <th style="padding: 0.75rem;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in substitutions %}
+                <tr style="border-bottom: 1px solid var(--border-color); {% if s[7] == 'cancelled' %}opacity: 0.5;{% endif %}">
+                    <td style="padding: 0.75rem;">{{ s[4] }}</td>
+                    <td style="padding: 0.75rem;">{{ s[8] }}</td>
+                    <td style="padding: 0.75rem;">{{ s[9] }}</td>
+                    <td style="padding: 0.75rem;">{{ s[10] }} {% if s[11] %}({{ s[11] }}){% endif %}</td>
+                    <td style="padding: 0.75rem;">{{ s[12] }} – {{ s[13] }}</td>
+                    <td style="padding: 0.75rem; color: var(--text-muted);">{{ s[5] or '—' }}</td>
+                    <td style="padding: 0.75rem;">
+                        {% if s[6] == 'active' %}
+                            <span style="color: var(--accent-green);">● Active</span>
+                        {% else %}
+                            <span style="color: var(--text-muted);">● Cancelled</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.75rem;">
+                        {% if s[6] == 'active' %}
+                            <button onclick="cancelSubstitution({{ s[0] }})" style="background: var(--accent-red); color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No substitutions assigned yet.</p>
+    {% endif %}
+</div>
+
+<script>
+async function showAlert(msg, success) {
+    const el = document.getElementById('sub-alert');
+    el.style.display = 'block';
+    el.querySelector('.alert-msg').textContent = msg;
+    el.className = success ? 'alert alert-success' : 'alert alert-error';
+    setTimeout(() => el.style.display = 'none', 4000);
+}
+
+document.getElementById('subForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+        original_faculty_id: document.getElementById('sub_original').value,
+        substitute_faculty_id: document.getElementById('sub_substitute').value,
+        timetable_id: document.getElementById('sub_timetable').value,
+        date: document.getElementById('sub_date').value,
+        reason: document.getElementById('sub_reason').value,
+    };
+
+    if (!body.original_faculty_id || !body.substitute_faculty_id || !body.timetable_id || !body.date) {
+        showAlert('All fields are required.', false);
+        return;
+    }
+    if (body.original_faculty_id === body.substitute_faculty_id) {
+        showAlert('Original and substitute faculty cannot be the same.', false);
+        return;
+    }
+
+    try {
+        const res = await fetch('{{ url_for("api_create_substitution") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        showAlert(data.message, data.success);
+        if (data.success) {
+            document.getElementById('sub_reason').value = '';
+            setTimeout(() => location.reload(), 1000);
+        }
+    } catch (err) {
+        showAlert('Failed to assign substitute.', false);
+    }
+});
+
+async function cancelSubstitution(id) {
+    if (!confirm('Cancel this substitution? The original faculty will regain access to this class.')) return;
+
+    try {
+        const res = await fetch('{{ url_for("api_cancel_substitution") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        showAlert(data.message, data.success);
+        if (data.success) setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+        showAlert('Failed to cancel substitution.', false);
+    }
+}
+</script>
+{% endblock %}

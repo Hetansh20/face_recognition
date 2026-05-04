@@ -166,6 +166,24 @@ class Database:
             )
         ''')
 
+        # Faculty Substitutions — tracks when a faculty member substitutes for another
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS faculty_substitutions (
+                id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+                original_faculty_id    INTEGER NOT NULL,
+                substitute_faculty_id  INTEGER NOT NULL,
+                timetable_id           INTEGER NOT NULL,
+                date                   TEXT NOT NULL,
+                reason                 TEXT DEFAULT '',
+                status                 TEXT DEFAULT 'active',
+                created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (original_faculty_id)   REFERENCES faculties(id),
+                FOREIGN KEY (substitute_faculty_id) REFERENCES faculties(id),
+                FOREIGN KEY (timetable_id)          REFERENCES timetables(id),
+                UNIQUE(original_faculty_id, timetable_id, date)
+            )
+        ''')
+
         # ── Safe migrations for old columns ──────────────────────────
         self._add_column_if_missing("students",   "gr_number",   "TEXT")
         self._add_column_if_missing("students",   "enrollment_number", "TEXT")
@@ -269,18 +287,88 @@ class Database:
                 return f
         return None
 
-    def update_faculty(self, faculty_id, name, email, department):
+    def update_faculty(self, faculty_id, name, email, department, passcode=None):
         self.connect()
-        self.cursor.execute(
-            'UPDATE faculties SET name=?, email=?, department=? WHERE id=?',
-            (name, email, department, faculty_id)
-        )
+        if passcode and passcode.strip():
+            passcode_hash = self.hash_passcode(passcode.strip())
+            self.cursor.execute(
+                'UPDATE faculties SET name=?, email=?, department=?, passcode_hash=? WHERE id=?',
+                (name, email, department, passcode_hash, faculty_id)
+            )
+        else:
+            self.cursor.execute(
+                'UPDATE faculties SET name=?, email=?, department=? WHERE id=?',
+                (name, email, department, faculty_id)
+            )
         self.conn.commit(); self.disconnect()
 
     def delete_faculty(self, faculty_id):
         self.connect()
         self.cursor.execute('UPDATE faculties SET is_active=0 WHERE id=?', (faculty_id,))
         self.conn.commit(); self.disconnect()
+
+    # ──────────────────────── Faculty Substitutions ──────────────────
+
+    def create_substitution(self, original_faculty_id, substitute_faculty_id,
+                            timetable_id, date, reason=""):
+        self.connect()
+        self.cursor.execute('''
+            INSERT INTO faculty_substitutions
+                (original_faculty_id, substitute_faculty_id, timetable_id, date, reason)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (original_faculty_id, substitute_faculty_id, timetable_id, date, reason))
+        self.conn.commit()
+        sid = self.cursor.lastrowid; self.disconnect(); return sid
+
+    def get_substitution(self, original_faculty_id, date):
+        """Get active substitution for a faculty on a specific date."""
+        self.connect()
+        self.cursor.execute('''
+            SELECT s.id, s.original_faculty_id, s.substitute_faculty_id,
+                   s.timetable_id, s.date, s.reason, s.status,
+                   f1.name as original_name, f2.name as substitute_name
+            FROM faculty_substitutions s
+            JOIN faculties f1 ON s.original_faculty_id = f1.id
+            JOIN faculties f2 ON s.substitute_faculty_id = f2.id
+            WHERE s.original_faculty_id = ? AND s.date = ? AND s.status = 'active'
+        ''', (original_faculty_id, date))
+        r = self.cursor.fetchone(); self.disconnect(); return r
+
+    def get_substitute_timetables(self, substitute_faculty_id, date):
+        """Get all timetables where this faculty is a substitute on a given date."""
+        self.connect()
+        self.cursor.execute('''
+            SELECT t.*, f1.name as original_faculty_name, s.reason, s.id as substitution_id
+            FROM faculty_substitutions s
+            JOIN timetables t ON s.timetable_id = t.id
+            JOIN faculties f1 ON s.original_faculty_id = f1.id
+            WHERE s.substitute_faculty_id = ? AND s.date = ? AND s.status = 'active'
+            ORDER BY t.start_time
+        ''', (substitute_faculty_id, date))
+        r = self.cursor.fetchall(); self.disconnect(); return r
+
+    def cancel_substitution(self, substitution_id):
+        self.connect()
+        self.cursor.execute('''
+            UPDATE faculty_substitutions SET status='cancelled' WHERE id=?
+        ''', (substitution_id,))
+        self.conn.commit(); self.disconnect()
+
+    def get_all_substitutions(self):
+        """Get all substitutions for admin view."""
+        self.connect()
+        self.cursor.execute('''
+            SELECT s.id, s.original_faculty_id, s.substitute_faculty_id,
+                   s.timetable_id, s.date, s.reason, s.status, s.created_at,
+                   f1.name as original_name, f2.name as substitute_name,
+                   t.class_name, t.subject_name, t.start_time, t.end_time, t.day_of_week
+            FROM faculty_substitutions s
+            JOIN faculties f1 ON s.original_faculty_id = f1.id
+            JOIN faculties f2 ON s.substitute_faculty_id = f2.id
+            JOIN timetables t ON s.timetable_id = t.id
+            ORDER BY s.date DESC, s.created_at DESC
+        ''')
+        r = self.cursor.fetchall(); self.disconnect(); return r
 
     # ──────────────────────── Semesters ──────────────────────────────
 
@@ -666,8 +754,6 @@ class Database:
             print("[Database] Data repair completed successfully.")
         except Exception as e:
             print(f"[Database] Data repair error: {e}")
-        finally:
-            self.disconnect()
 
 
 if __name__ == "__main__":
