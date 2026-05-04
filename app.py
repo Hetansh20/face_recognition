@@ -15,7 +15,7 @@ import numpy as np
 import cv2
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-in-production-2024")
 
 # Absolute base directory for all file operations
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -120,6 +120,34 @@ def api_add_faculty():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
+@app.route("/api/admin/faculty", methods=["GET"])
+@admin_required
+def api_list_faculty():
+    try:
+        faculties = get_db().get_all_faculties()
+        return jsonify({"success": True, "faculties": [{"id": f[0], "name": f[1], "email": f[2], "department": f[3]} for f in (faculties or [])]})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/faculty/<int:faculty_id>", methods=["PUT"])
+@admin_required
+def api_update_faculty(faculty_id):
+    data = request.json
+    try:
+        get_db().update_faculty(faculty_id, data['name'], data['email'], data['department'], data.get('passcode'))
+        return jsonify({"success": True, "message": "Faculty updated!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/admin/faculty/<int:faculty_id>", methods=["DELETE"])
+@admin_required
+def api_delete_faculty(faculty_id):
+    try:
+        get_db().delete_faculty(faculty_id)
+        return jsonify({"success": True, "message": "Faculty deactivated."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
 @app.route("/api/admin/student", methods=["POST"])
 @admin_required
 def api_add_student():
@@ -161,6 +189,62 @@ def api_admin_export():
     try:
         fname, msg = CSVExportService().export_all_attendance()
         return jsonify({"success": bool(fname), "message": msg, "file": fname})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+# ── SUBSTITUTE FACULTY ──────────────────────────────────────────────
+
+@app.route("/admin/substitutions")
+@admin_required
+def admin_substitutions():
+    db = get_db()
+    faculties = db.get_all_faculties() or []
+    timetables = []
+    for row in (db.get_all_timetables() or []):
+        timetables.append({
+            "id": row["id"],
+            "faculty_id": row["faculty_id"],
+            "faculty_name": row["faculty_name"],
+            "class_name": row["class_name"],
+            "subject": row["subject_name"],
+            "day": row["day_of_week"],
+            "start": row["start_time"],
+            "end": row["end_time"],
+        })
+    substitutions = db.get_all_substitutions() or []
+    return render_template(
+        "admin_substitutions.html",
+        faculties=faculties,
+        timetables=timetables,
+        substitutions=substitutions,
+    )
+
+@app.route("/api/admin/substitution", methods=["POST"])
+@admin_required
+def api_create_substitution():
+    data = request.json
+    try:
+        sid = get_db().create_substitution(
+            int(data['original_faculty_id']),
+            int(data['substitute_faculty_id']),
+            int(data['timetable_id']),
+            data['date'],
+            data.get('reason', '')
+        )
+        return jsonify({"success": True, "message": "Substitute assigned!", "id": sid})
+    except Exception as e:
+        msg = str(e)
+        if "UNIQUE constraint" in msg:
+            msg = "A substitution already exists for this faculty/timetable/date."
+        return jsonify({"success": False, "message": msg})
+
+@app.route("/api/admin/substitution/cancel", methods=["POST"])
+@admin_required
+def api_cancel_substitution():
+    try:
+        get_db().cancel_substitution(request.json['id'])
+        return jsonify({"success": True, "message": "Substitution cancelled."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
@@ -611,24 +695,43 @@ def faculty_login():
             session['faculty_name'] = sess_data['name']
             session['faculty_email'] = sess_data['email']
             
-            # ── Auto-start Face Recognition if an active class exists
+            # ── Auto-start session if active class exists (own or substitution)
             active_class, _ = timetable_manager.get_active_class(session['faculty_id'])
+            is_sub = False
+            if not active_class:
+                sub_classes, _ = timetable_manager.get_today_substitution_classes(session['faculty_id'])
+                if sub_classes:
+                    active_class = sub_classes[0]
+                    is_sub = True
             if active_class:
                 from attendance_marker import attendance_marker
                 session_id_tuple = attendance_marker.start_session(session['faculty_id'], active_class[0])
                 sid = session_id_tuple[0] if session_id_tuple else None
                 tid = active_class[0]
                 
-                # Update Flask session to track this class
-                subj = active_class['subject_name'] or ''
-                cname = active_class['class_name'] or ''
+                if is_sub and hasattr(active_class, 'keys'):
+                    subj = active_class['subject_name'] or ''
+                    cname = active_class['class_name'] or ''
+                    start_t = active_class['start_time']
+                    end_t = active_class['end_time']
+                elif is_sub:
+                    subj = active_class['subject_name'] if 'subject_name' in active_class.keys() else ''
+                    cname = active_class['class_name']
+                    start_t = active_class['start_time']
+                    end_t = active_class['end_time']
+                else:
+                    subj = active_class['subject_name'] or ''
+                    cname = active_class['class_name'] or ''
+                    start_t = active_class['start_time']
+                    end_t = active_class['end_time']
+                
                 display_name = f"{subj} - {cname}" if subj else cname
                 
                 session['active_session'] = {
                     "timetable_id": tid,
                     "session_id": sid,
                     "class_name": display_name,
-                    "time": f"{active_class['start_time']} - {active_class['end_time']}"
+                    "time": f"{start_t} - {end_t}"
                 }
                 
                 # NOTE: Live camera (FaceEngine) is disabled on cloud deployments
@@ -658,19 +761,34 @@ def faculty_dashboard():
     fid = session['faculty_id']
     active_class, msg = timetable_manager.get_active_class(fid)
     
+    if not active_class:
+        sub_classes, _ = timetable_manager.get_today_substitution_classes(fid)
+        if sub_classes:
+            active_class = sub_classes[0]
+    
     session_info = None
     if active_class:
         from attendance_marker import attendance_marker
         session_id_tuple = attendance_marker.start_session(fid, active_class[0])
-        subj = active_class['subject_name'] or ''
-        cname = active_class['class_name'] or ''
+        
+        if hasattr(active_class, 'keys'):
+            subj = active_class['subject_name'] or ''
+            cname = active_class['class_name'] or ''
+            start_t = active_class['start_time']
+            end_t = active_class['end_time']
+        else:
+            subj = active_class[5] if len(active_class) > 5 and active_class[5] else ''
+            cname = active_class[2] if len(active_class) > 2 else ''
+            start_t = active_class[7] if len(active_class) > 7 else ''
+            end_t = active_class[8] if len(active_class) > 8 else ''
+        
         display_name = f"{subj} - {cname}" if subj else cname
         
         session_info = {
             "timetable_id": active_class[0],
             "session_id": session_id_tuple[0] if session_id_tuple else None,
             "class_name": display_name,
-            "time": f"{active_class['start_time']} - {active_class['end_time']}"
+            "time": f"{start_t} - {end_t}"
         }
         session['active_session'] = session_info
     
@@ -697,6 +815,61 @@ def video_feed():
         def empty_feed():
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n\r\n')
         return Response(empty_feed(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route("/api/faculty/session_status")
+@faculty_required
+def api_session_status():
+    active = session.get('active_session')
+    if not active or not active.get('session_id'):
+        return jsonify({"present_count": 0, "total_students": 0})
+    try:
+        from attendance_marker import attendance_marker
+        report, _ = attendance_marker.get_session_report(active['session_id'])
+        if report:
+            return jsonify({"present_count": report['present_count'], "total_students": report['total_students']})
+    except Exception: pass
+    return jsonify({"present_count": 0, "total_students": 0})
+
+@app.route("/api/faculty/start_recognition", methods=["POST"])
+@faculty_required
+def api_start_recognition():
+    global ACTIVE_ENGINE
+    session_info = session.get('active_session')
+    if not session_info:
+        return jsonify({"success": False, "message": "No active session."})
+    if ACTIVE_ENGINE and ACTIVE_ENGINE.is_running:
+        return jsonify({"success": False, "message": "Already running."})
+    try:
+        from face_engine import FaceEngine
+        ACTIVE_ENGINE = FaceEngine(timetable_id=session_info["timetable_id"], session_id=session_info.get("session_id"))
+        ACTIVE_ENGINE.start()
+        return jsonify({"success": True, "message": "Face recognition started."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+@app.route("/api/faculty/export_csv", methods=["POST"])
+@faculty_required
+def api_faculty_export_csv():
+    session_info = session.get('active_session')
+    if not session_info or not session_info.get('session_id'):
+        return jsonify({"success": False, "message": "No active session."})
+    try:
+        from attendance_marker import attendance_marker
+        report, _ = attendance_marker.get_session_report(session_info['session_id'])
+        if report:
+            import csv
+            fname = f"attendance_{session_info['session_id']}.csv"
+            fpath = os.path.join(REPORTS_DIR, fname)
+            os.makedirs(REPORTS_DIR, exist_ok=True)
+            with open(fpath, 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(["Student ID", "Name", "Time", "Confidence"])
+                for rec in report.get('records', []):
+                    w.writerow([rec.get('student_id',''), rec.get('student_name',''), rec.get('time',''), rec.get('confidence','')])
+            return jsonify({"success": True, "message": f"Exported: {fname}"})
+        return jsonify({"success": False, "message": "No data to export."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 @app.route("/api/faculty/stop_session", methods=["POST"])
 @faculty_required

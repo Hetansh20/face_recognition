@@ -65,38 +65,79 @@ class TimetableManager:
         """Get the next upcoming class for a faculty"""
         try:
             timetables = self.db.get_faculty_timetables(faculty_id)
-            
+
             if not timetables:
                 return None, "No timetables found"
-            
+
             IST = timezone(timedelta(hours=5, minutes=30))
             current_time = datetime.now(IST)
             current_day = current_time.strftime("%A")
             current_time_str = current_time.strftime("%H:%M")
-            
+
             # Look for next class today
             for timetable in timetables:
                 timetable_day = timetable['day_of_week']
                 start_time = timetable['start_time']
-                
+
                 if timetable_day.lower() == current_day.lower():
                     if start_time > current_time_str:
                         return timetable, "Next class found today"
-            
+
             # Look for classes in next 7 days
             for i in range(1, 8):
                 future_date = current_time + timedelta(days=i)
                 future_day = future_date.strftime("%A")
-                
+
                 for timetable in timetables:
                     timetable_day = timetable['day_of_week']
-                    
+
                     if timetable_day.lower() == future_day.lower():
                         return timetable, f"Next class found on {future_day}"
-            
+
             return None, "No upcoming classes found"
         except Exception as e:
             return None, f"Error: {str(e)}"
+
+    def get_active_substitution_class(self, substitute_faculty_id):
+        """Check if any substitution timetable is currently active for this faculty."""
+        try:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            today_str = datetime.now(IST).strftime("%Y-%m-%d")
+            current_day = datetime.now(IST).strftime("%A")
+            current_time_str = datetime.now(IST).strftime("%H:%M")
+
+            sub_timetables = self.db.get_substitute_timetables(substitute_faculty_id, today_str)
+            if not sub_timetables:
+                return None, "No substitution classes today"
+
+            for t in sub_timetables:
+                day = t['day_of_week'] if hasattr(t, 'keys') else (t[6] if len(t) > 6 else '')
+                start = t['start_time'] if hasattr(t, 'keys') else (t[7] if len(t) > 7 else '')
+                end = t['end_time'] if hasattr(t, 'keys') else (t[8] if len(t) > 8 else '')
+
+                if day.lower() == current_day.lower() and start and end:
+                    if start < end:
+                        if start <= current_time_str <= end:
+                            return t, "Active substitution class found"
+                    else:
+                        if current_time_str >= start or current_time_str <= end:
+                            return t, "Active substitution class found (overnight)"
+
+            return None, "No active substitution class right now"
+        except Exception as e:
+            return None, f"Error: {str(e)}"
+    
+    def get_today_substitution_classes(self, substitute_faculty_id):
+        """Get ALL substitution classes for today, regardless of current time."""
+        try:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            today_str = datetime.now(IST).strftime("%Y-%m-%d")
+            sub_timetables = self.db.get_substitute_timetables(substitute_faculty_id, today_str)
+            if not sub_timetables:
+                return [], "No substitution classes today"
+            return sub_timetables, f"Found {len(sub_timetables)} substitution class(es)"
+        except Exception as e:
+            return [], f"Error: {str(e)}"
     
     def get_class_students(self, timetable_id):
         """Get students enrolled in the specific class/batch of the timetable entry"""
